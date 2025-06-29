@@ -1,34 +1,7 @@
-// src/components/ForumPost.tsx
+// src/app/Components/ForumPost.tsx - עם מזהי string
 import React from 'react';
 import { Star, MessageCircle, Clock } from 'lucide-react';
-
-interface ForumPostData {
-  id: number;
-  title: string;
-  content: string;
-  author: string;
-  authorId: number;
-  replies: number;
-  likes: number;
-  time: string;
-  avatar: string;
-  postImage: string;
-  category: string;
-}
-
-interface ForumPostProps {
-  post: ForumPostData;
-  expandedPosts: { [key: number]: boolean };
-  togglePostExpansion: (postId: number) => void;
-  themeClasses: {
-    bg: string;
-    cardBg: string;
-    text: string;
-    textSecondary: string;
-    border: string;
-    hover: string;
-  };
-}
+import { ForumPostData, ForumPostProps } from '../types/ForumPost';
 
 const ForumPost: React.FC<ForumPostProps> = ({ 
   post, 
@@ -51,67 +24,33 @@ const ForumPost: React.FC<ForumPostProps> = ({
         <div className="absolute bottom-0 right-0 p-3 hidden md:block">
           <div className="flex items-center justify-end mb-2">
             <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium text-white hover:text-blue-300 transition-colors cursor-pointer">
+              <span className={`text-sm ${themeClasses.text} hover:text-blue-500 transition-colors cursor-pointer`}>
                 {post.author}
               </span>
               <img 
                 src={post.avatar} 
                 alt={post.author}
-                className="w-8 h-8 rounded-full border-2 border-white"
+                className="w-8 h-8 rounded-full border border-blue-500"
               />
             </div>
           </div>
-          
-          {/* סטטיסטיקות על התמונה */}
+        
+          {/* סטטיסטיקות תחת התמונה */}
           <div className="flex flex-wrap gap-3 text-xs justify-end">
             <div className="flex items-center space-x-1 space-x-reverse">
-              <span className="text-gray-200">{post.time}</span>
-              <Clock className="w-3 h-3 text-gray-300" />
+              <span className={`${themeClasses.textSecondary}`}>{post.time}</span>
+              <Clock className="w-3 h-3 text-gray-500" />
             </div>
 
             <div className="flex items-center space-x-1 space-x-reverse">
-              <span className="text-gray-200">{post.replies}</span>
-              <MessageCircle className="w-3 h-3 text-blue-400" />
+              <span className={`${themeClasses.textSecondary}`}>{post.replies}</span>
+              <MessageCircle className="w-3 h-3 text-blue-500" />
             </div>
             
             <div className="flex items-center space-x-1 space-x-reverse">
-              <span className="text-gray-200">{post.likes}</span>
+              <span className={`${themeClasses.textSecondary}`}>{post.likes}</span>
               <Star className="w-3 h-3 text-yellow-400 fill-current" />
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* מידע תחת התמונה - רק במסכים קטנים */}
-      <div className="p-3 border-b border-gray-200 dark:border-gray-700 md:hidden">
-        <div className="flex items-center justify-end mb-2">
-          <div className="flex items-center space-x-2">
-            <span className={`text-sm font-medium ${themeClasses.text} hover:text-blue-500 transition-colors cursor-pointer`}>
-              {post.author}
-            </span>
-            <img 
-              src={post.avatar} 
-              alt={post.author}
-              className="w-8 h-8 rounded-full border border-blue-500"
-            />
-          </div>
-        </div>
-        
-        {/* סטטיסטיקות תחת התמונה */}
-        <div className="flex flex-wrap gap-3 text-xs justify-end">
-          <div className="flex items-center space-x-1 space-x-reverse">
-            <span className={`${themeClasses.textSecondary}`}>{post.time}</span>
-            <Clock className="w-3 h-3 text-gray-500" />
-          </div>
-
-          <div className="flex items-center space-x-1 space-x-reverse">
-            <span className={`${themeClasses.textSecondary}`}>{post.replies}</span>
-            <MessageCircle className="w-3 h-3 text-blue-500" />
-          </div>
-          
-          <div className="flex items-center space-x-1 space-x-reverse">
-            <span className={`${themeClasses.textSecondary}`}>{post.likes}</span>
-            <Star className="w-3 h-3 text-yellow-400 fill-current" />
           </div>
         </div>
       </div>

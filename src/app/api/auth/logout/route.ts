@@ -1,13 +1,14 @@
-// app/api/auth/logout/route.ts - Logout endpoint
-import { NextRequest, NextResponse } from 'next/server';
+// src/app/api/auth/logout/route.ts - קובץ נפרד להתנתקות
+import { NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const response = NextResponse.json({
-      message: 'התנתקות בוצעה בהצלחה'
+      message: 'התנתקות בוצעה בהצלחה',
+      success: true
     });
     
-    // Clear auth cookie
+    // מחק cookie
     response.cookies.set('auth-token', '', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -17,8 +18,8 @@ export async function POST(request: NextRequest) {
     
     return response;
     
-  } catch (error) {
-    console.error('Logout API error:', error);
+  } catch (error: any) {
+    console.error('Logout error:', error);
     return NextResponse.json(
       { error: 'שגיאה בהתנתקות' },
       { status: 500 }

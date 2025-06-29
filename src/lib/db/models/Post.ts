@@ -1,4 +1,4 @@
-// lib/db/models/Post.ts - Post model
+// src/lib/db/models/Post.ts
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IPost extends Document {
@@ -59,9 +59,9 @@ const PostSchema = new Schema<IPost>({
   timestamps: true
 });
 
-// Add indexes for better performance
+// אינדקסים לביצועים טובים יותר (ללא כפילויות)
 PostSchema.index({ createdAt: -1 });
-PostSchema.index({ author: 1 });
-PostSchema.index({ category: 1 });
+PostSchema.index({ author: 1, createdAt: -1 });
+PostSchema.index({ category: 1, createdAt: -1 });
 
 export const Post = mongoose.models.Post || mongoose.model<IPost>('Post', PostSchema);

@@ -1,16 +1,18 @@
+// src/lib/db/models/Category.ts
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ICategory extends Document {
   name: string;
   color: string;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 const CategorySchema = new Schema<ICategory>({
   name: {
     type: String,
     required: true,
-    unique: true,
+    unique: true, // רק כאן, לא גם בindex()
     trim: true,
     maxlength: 50
   },
@@ -22,5 +24,7 @@ const CategorySchema = new Schema<ICategory>({
 }, {
   timestamps: true
 });
+
+// הסרנו את האינדקסים הכפולים
 
 export const Category = mongoose.models.Category || mongoose.model<ICategory>('Category', CategorySchema);
