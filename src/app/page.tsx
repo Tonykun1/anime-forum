@@ -294,12 +294,7 @@ const AnimeForum: React.FC = () => {
             <div className="mb-8">
               <div className="flex justify-between items-center mb-6">
                 <h2 className={`text-2xl font-bold ${themeClasses.text}`}>דיונים חמים</h2>
-                <button
-                  onClick={() => setShowCreatePost(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  פוסט חדש
-                </button>
+
               </div>
 
               {postsLoading ? (

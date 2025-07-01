@@ -1,78 +1,39 @@
-// src/app/api/setup/route.ts - Setup API with Mongoose
-import { NextRequest, NextResponse } from 'next/server';
-import { setupDatabase, checkIfSetupNeeded } from '@/lib/db/setup';
+// app/api/setup/route.ts - Fixed Setup API with MongoDB
+import { NextResponse } from 'next/server';
+import { seedDatabase } from '@/lib/db/seed';
+import { setupDatabase } from '@/lib/db/setup';
 
 export async function GET() {
   try {
-    // בדיקה אם נדרש setup
-    const needsSetup = await checkIfSetupNeeded();
+    // First run setup (create indexes)
+    const setupResult = await setupDatabase();
     
-    if (!needsSetup) {
+    if (!setupResult.success) {
+      return NextResponse.json(setupResult, { status: 500 });
+    }
+
+    // Then seed the database
+    const seedResult = await seedDatabase();
+    
+    if (seedResult.success) {
       return NextResponse.json({
         success: true,
-        message: 'מסד הנתונים כבר מוגדר כראוי',
-        alreadySetup: true,
-        timestamp: new Date().toISOString()
+        message: 'Database setup and seeding completed successfully!',
+        setup: setupResult,
+        seed: seedResult
       });
+    } else {
+      return NextResponse.json(seedResult, { status: 500 });
     }
-    
-    // הרצת setup
-    const result = await setupDatabase();
-    
-    return NextResponse.json({
-      ...result,
-      timestamp: new Date().toISOString(),
-      alreadySetup: false
-    }, { status: result.success ? 200 : 500 });
-    
   } catch (error: any) {
     console.error('Setup API error:', error);
-    
     return NextResponse.json({
       success: false,
-      message: 'שגיאה בהרצת setup',
-      error: error.message,
-      timestamp: new Date().toISOString()
+      error: error.message
     }, { status: 500 });
   }
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { force = false } = body;
-    
-    if (!force) {
-      // בדיקה אם נדרש setup
-      const needsSetup = await checkIfSetupNeeded();
-      
-      if (!needsSetup) {
-        return NextResponse.json({
-          success: true,
-          message: 'מסד הנתונים כבר מוגדר. השתמש ב-force: true כדי להריץ שוב',
-          alreadySetup: true,
-          timestamp: new Date().toISOString()
-        });
-      }
-    }
-    
-    // הרצת setup (גם אם כבר מוגדר עם force)
-    const result = await setupDatabase();
-    
-    return NextResponse.json({
-      ...result,
-      timestamp: new Date().toISOString(),
-      forced: force
-    }, { status: result.success ? 201 : 500 });
-    
-  } catch (error: any) {
-    console.error('Setup POST API error:', error);
-    
-    return NextResponse.json({
-      success: false,
-      message: 'שגיאה בהרצת setup',
-      error: error.message,
-      timestamp: new Date().toISOString()
-    }, { status: 500 });
-  }
+export async function POST() {
+  return GET();
 }

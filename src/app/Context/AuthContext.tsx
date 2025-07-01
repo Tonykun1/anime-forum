@@ -5,133 +5,152 @@ import { User, LoginFormData, RegisterFormData, AuthContextType } from '../types
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const mockUsers: (User & { password: string })[] = [
-  {
-    id: 1,
-    username: "AnimeOtaku",
-    email: "otaku@example.com",
-    password: "123456",
-    avatar: "https://via.placeholder.com/100x100/3B82F6/FFFFFF?text=AO",
-    coverImage: "https://via.placeholder.com/800x200/1E40AF/FFFFFF?text=Profile+Cover",
-    bio: "חובב אנימה ומנגה מזה 10 שנים. אוהב במיוחד שונן ואקשן!",
-    joinDate: "2023-01-15",
-    postsCount: 45,
-    likesCount: 234
-  },
-  {
-    id: 2,
-    username: "ActionFan",
-    email: "action@example.com", 
-    password: "123456",
-    avatar: "https://via.placeholder.com/100x100/EF4444/FFFFFF?text=AF",
-    coverImage: "https://via.placeholder.com/800x200/DC2626/FFFFFF?text=Action+Fan+Cover",
-    bio: "כל מה שקשור לקרבות ואקשן - אני כאן!",
-    joinDate: "2023-03-22",
-    postsCount: 78,
-    likesCount: 456
-  }
-];
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
-  // טען משתמש מ-localStorage בטעינת העמוד
+  // Check if user is logged in on app load
   useEffect(() => {
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      const userData = JSON.parse(savedUser);
-      setUser(userData);
-      setIsAuthenticated(true);
-    }
+    checkAuthStatus();
   }, []);
 
-  const login = async (formData: LoginFormData): Promise<boolean> => {
-    // חיפוש משתמש במאגר המדומה
-    const foundUser = mockUsers.find(
-      u => u.email === formData.email && u.password === formData.password
-    );
-
-    if (foundUser) {
-      const userWithoutPassword = {
-        id: foundUser.id,
-        username: foundUser.username,
-        email: foundUser.email,
-        avatar: foundUser.avatar,
-        coverImage: foundUser.coverImage,
-        bio: foundUser.bio,
-        joinDate: foundUser.joinDate,
-        postsCount: foundUser.postsCount,
-        likesCount: foundUser.likesCount
-      };
-      
-      setUser(userWithoutPassword);
-      setIsAuthenticated(true);
-      localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
-      return true;
+  const checkAuthStatus = async () => {
+    try {
+      const response = await fetch('/api/auth/me');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.user) {
+          setUser({
+            id: data.user.id,
+            username: data.user.username,
+            email: data.user.email,
+            avatar: data.user.avatar || `https://via.placeholder.com/100x100/6366F1/FFFFFF?text=${data.user.username.charAt(0).toUpperCase()}`,
+            coverImage: data.user.coverImage || "https://via.placeholder.com/800x200/6366F1/FFFFFF?text=Profile+Cover",
+            bio: data.user.bio || '',
+            joinDate: data.user.createdAt || new Date().toISOString().split('T')[0],
+            postsCount: data.user.postsCount || 0,
+            likesCount: data.user.likesCount || 0
+          });
+          setIsAuthenticated(true);
+        }
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
     }
-    
-    return false;
+  };
+
+  const login = async (formData: LoginFormData): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.user) {
+        setUser({
+          id: data.user.id,
+          username: data.user.username,
+          email: data.user.email,
+          avatar: data.user.avatar || `https://via.placeholder.com/100x100/6366F1/FFFFFF?text=${data.user.username.charAt(0).toUpperCase()}`,
+          coverImage: data.user.coverImage || "https://via.placeholder.com/800x200/6366F1/FFFFFF?text=Profile+Cover",
+          bio: data.user.bio || '',
+          joinDate: data.user.createdAt || new Date().toISOString().split('T')[0],
+          postsCount: data.user.postsCount || 0,
+          likesCount: data.user.likesCount || 0
+        });
+        setIsAuthenticated(true);
+        return true;
+      } else {
+        console.error('Login failed:', data.error);
+        return false;
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
+    }
   };
 
   const register = async (formData: RegisterFormData): Promise<boolean> => {
-    // בדוק אם המשתמש כבר קיים
-    const existingUser = mockUsers.find(u => u.email === formData.email);
-    if (existingUser) {
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.user) {
+        setUser({
+          id: data.user.id,
+          username: data.user.username,
+          email: data.user.email,
+          avatar: data.user.avatar || `https://via.placeholder.com/100x100/6366F1/FFFFFF?text=${data.user.username.charAt(0).toUpperCase()}`,
+          coverImage: data.user.coverImage || "https://via.placeholder.com/800x200/6366F1/FFFFFF?text=Welcome+Cover",
+          bio: data.user.bio || 'חבר חדש בקהילה!',
+          joinDate: data.user.createdAt || new Date().toISOString().split('T')[0],
+          postsCount: data.user.postsCount || 0,
+          likesCount: data.user.likesCount || 0
+        });
+        setIsAuthenticated(true);
+        return true;
+      } else {
+        console.error('Registration failed:', data.error);
+        return false;
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
       return false;
     }
-
-    // צור משתמש חדש
-    const newUser = {
-      id: mockUsers.length + 1,
-      username: formData.username,
-      email: formData.email,
-      password: formData.password,
-      avatar: formData.avatar || `https://via.placeholder.com/100x100/6366F1/FFFFFF?text=${formData.username.charAt(0).toUpperCase()}`,
-      coverImage: "https://via.placeholder.com/800x200/6366F1/FFFFFF?text=Welcome+Cover",
-      bio: "חבר חדש בקהילה!",
-      joinDate: new Date().toISOString().split('T')[0],
-      postsCount: 0,
-      likesCount: 0
-    };
-
-    mockUsers.push(newUser);
-
-    const userWithoutPassword = {
-      id: newUser.id,
-      username: newUser.username,
-      email: newUser.email,
-      avatar: newUser.avatar,
-      coverImage: newUser.coverImage,
-      bio: newUser.bio,
-      joinDate: newUser.joinDate,
-      postsCount: newUser.postsCount,
-      likesCount: newUser.likesCount
-    };
-
-    setUser(userWithoutPassword);
-    setIsAuthenticated(true);
-    localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
-    return true;
   };
 
-  const logout = (): void => {
-    setUser(null);
-    setIsAuthenticated(false);
-    localStorage.removeItem('currentUser');
+  const logout = async (): Promise<void> => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setUser(null);
+      setIsAuthenticated(false);
+    }
   };
 
-  const updateUserProfile = (updates: Partial<User>): void => {
-    if (user) {
-      const updatedUser = { ...user, ...updates };
-      setUser(updatedUser);
-      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-      
-      // עדכון במאגר המדומה
-      const userIndex = mockUsers.findIndex(u => u.id === user.id);
-      if (userIndex !== -1) {
-        mockUsers[userIndex] = { ...mockUsers[userIndex], ...updates };
+  const updateUserProfile = async (updates: Partial<User>): Promise<void> => {
+    if (!user) return;
+
+    try {
+      const response = await fetch('/api/auth/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUser({
+          ...user,
+          ...updates,
+          ...data.user
+        });
       }
+    } catch (error) {
+      console.error('Profile update error:', error);
+      // Fallback to local update
+      setUser({
+        ...user,
+        ...updates
+      });
     }
   };
 

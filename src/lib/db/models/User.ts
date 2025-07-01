@@ -1,4 +1,4 @@
-// src/lib/db/models/User.ts - עם export של interface
+// lib/db/models/User.ts - User model with password and authentication
 import mongoose, { Schema, Document } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
@@ -7,82 +7,84 @@ export interface IUser extends Document {
   email: string;
   password: string;
   avatar?: string;
+  coverImage?: string;
+  bio?: string;
   role: 'user' | 'editor' | 'admin';
+  postsCount: number;
+  likesCount: number;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
-// מחק את המודל הקיים לפני יצירת חדש
-if (mongoose.models.User) {
-  delete mongoose.models.User;
-}
-
 const UserSchema = new Schema<IUser>({
   username: {
     type: String,
-    required: [true, 'Username is required'],
+    required: true,
     trim: true,
-    maxlength: 50
+    maxlength: 50,
+    unique: true
   },
   email: {
     type: String,
-    required: [true, 'Email is required'],
+    required: true,
     unique: true,
     lowercase: true,
     trim: true
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
+    required: true,
     minlength: 6
   },
   avatar: {
     type: String,
     default: null
   },
+  coverImage: {
+    type: String,
+    default: null
+  },
+  bio: {
+    type: String,
+    default: '',
+    maxlength: 500
+  },
   role: {
     type: String,
     enum: ['user', 'editor', 'admin'],
     default: 'user'
+  },
+  postsCount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  likesCount: {
+    type: Number,
+    default: 0,
+    min: 0
   }
 }, {
   timestamps: true
 });
 
-// הצפנת סיסמה לפני שמירה
+// Hash password before saving
 UserSchema.pre('save', async function(next) {
-  console.log('🔐 Pre-save hook triggered for user:', this.username);
-  
-  if (!this.isModified('password')) {
-    console.log('🔐 Password not modified, skipping encryption');
-    return next();
-  }
+  if (!this.isModified('password')) return next();
   
   try {
-    console.log('🔐 Encrypting password for user:', this.username);
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    console.log('✅ Password encrypted successfully');
     next();
-  } catch (error: any) {
-    console.error('❌ Error encrypting password:', error);
-    next(error);
+  } catch (error) {
+    next(error as Error);
   }
 });
 
-// השוואת סיסמה
+// Compare password method
 UserSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
-  console.log('🔍 Comparing password for user:', this.username);
-  try {
-    const result = await bcrypt.compare(candidatePassword, this.password);
-    console.log('🔍 Password comparison result:', result);
-    return result;
-  } catch (error) {
-    console.error('❌ Error comparing passwords:', error);
-    return false;
-  }
+  return bcrypt.compare(candidatePassword, this.password);
 };
 
-// ייצוא המודל והinterface
-export const User = mongoose.model<IUser>('User', UserSchema);
+export const User = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);
