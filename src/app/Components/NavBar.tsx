@@ -1,4 +1,4 @@
-// src/components/NavBar.tsx
+// src/app/Components/NavBar.tsx - מתוקן עם העברת פונקציית פוסט חדש
 import React, { useState } from 'react';
 import { Search, Moon, Sun, Home, Film, Play, Bookmark, MessageCircle, Menu, ChevronDown, Plus, LogIn } from 'lucide-react';
 import { useAuth } from '../Context/AuthContext';
@@ -76,155 +76,91 @@ const NavBar: React.FC<NavBarProps> = ({
                     }`}
                   >
                     <Icon className="w-4 h-4" />
-                    <span>{label}</span>
+                    <span className="font-medium">{label}</span>
                   </button>
                 ))}
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-4">
-              <div className="relative">
-                <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${themeClasses.textSecondary} w-4 h-4`} />
+              {/* חיפוש */}
+              <div className="relative hidden sm:block">
                 <input
                   type="text"
-                  placeholder="חיפוש אנימה..."
-                  className={`${themeClasses.cardBg} ${themeClasses.text} ${themeClasses.border} border rounded-lg pl-10 pr-4 py-2 w-64 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  placeholder="חיפוש..."
+                  className={`w-64 pl-10 pr-4 py-2 ${themeClasses.cardBg} ${themeClasses.border} border rounded-lg ${themeClasses.text} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                 />
+                <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${themeClasses.textSecondary}`} />
               </div>
-              
+
+              {/* כפתור ערכת נושא */}
               <button
                 onClick={toggleTheme}
-                className={`p-2 rounded-lg ${themeClasses.hover} ${themeClasses.text} transition-colors`}
+                className={`p-2 rounded-md ${themeClasses.hover} transition-colors`}
               >
-                {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                {isDark ? (
+                  <Sun className={`w-5 h-5 ${themeClasses.text}`} />
+                ) : (
+                  <Moon className={`w-5 h-5 ${themeClasses.text}`} />
+                )}
               </button>
-              
-              {/* כפתור פוסט חדש - רק למשתמשים מחוברים */}
-             
-              
-              {/* אזור המשתמש */}
+
+
+
+              {/* פרופיל משתמש או כפתור התחברות */}
               {isAuthenticated ? (
                 <UserProfileDropdown 
                   themeClasses={themeClasses} 
-                  onProfileClick={onProfileClick}
                   onCreatePost={onCreatePost}
-                  onSettingsClick={onSettingsClick}
                 />
               ) : (
                 <button
                   onClick={() => setIsLoginModalOpen(true)}
-                  className="flex items-center space-x-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md flex items-center space-x-2 transition-colors"
                 >
                   <LogIn className="w-4 h-4" />
-                  <span className="hidden sm:inline">התחבר</span>
+                  <span>התחבר</span>
                 </button>
               )}
             </div>
           </div>
-          
-          {/* תפריט נפתח בתוך הבר הראשי */}
+
+          {/* תפריט נייד */}
           {isMenuOpen && (
-            <div className="pb-4 border-t border-gray-300 dark:border-gray-600 mt-4 pt-4">
-              {/* כפתור פוסט חדש בתפריט - רק למשתמשים מחוברים */}
-              {isAuthenticated && (
-                <div className="mb-6 pb-4 border-b border-gray-300 dark:border-gray-600">
+            <div className={`md:hidden mt-4 pb-4 ${themeClasses.border} border-t`}>
+              <div className="flex flex-col space-y-2 mt-4">
+                {[
+                  { id: 'home', icon: Home, label: 'בית' },
+                  { id: 'posts', icon: MessageCircle, label: 'פוסטים' },
+                  { id: 'series', icon: Film, label: 'סדרות' },
+                  { id: 'movies', icon: Play, label: 'סרטים' },
+                  { id: 'watchlist', icon: Bookmark, label: 'רשימת צפייה' }
+                ].map(({ id, icon: Icon, label }) => (
                   <button
-                    onClick={() => {onCreatePost(); toggleMenu();}}
-                    className="w-full flex items-center justify-center space-x-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg transition-colors font-medium"
+                    key={id}
+                    onClick={() => {
+                      setActiveTab(id);
+                      toggleMenu();
+                    }}
+                    className={`flex items-center space-x-2 px-3 py-2 rounded-md transition-colors text-right ${
+                      activeTab === id 
+                        ? 'bg-blue-500 text-white' 
+                        : `${themeClasses.text} ${themeClasses.hover}`
+                    }`}
                   >
-                    <Plus className="w-5 h-5" />
-                    <span>צור פוסט חדש</span>
+                    <Icon className="w-4 h-4" />
+                    <span className="font-medium">{label}</span>
                   </button>
-                </div>
-              )}
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <h3 className="text-lg font-semibold mb-3 text-blue-500">פוסטים ודיונים</h3>
-                  <ul className="space-y-2">
-                    <li>
-                      <button 
-                        onClick={() => {onCreatePost(); toggleMenu();}}
-                        className={`block ${themeClasses.hover} px-3 py-2 rounded-md transition-colors w-full text-right ${themeClasses.text} font-medium`}
-                      >
-                        + צור פוסט חדש
-                      </button>
-                    </li>
-                    <li>
-                      <button 
-                        onClick={() => {setActiveTab('home'); toggleMenu();}}
-                        className={`block ${themeClasses.hover} px-3 py-2 rounded-md transition-colors w-full text-right ${themeClasses.text}`}
-                      >
-                        עמוד ראשי
-                      </button>
-                    </li>
-                    <li>
-                      <button 
-                        onClick={() => {setActiveTab('posts'); toggleMenu();}}
-                        className={`block ${themeClasses.hover} px-3 py-2 rounded-md transition-colors w-full text-right ${themeClasses.text}`}
-                      >
-                        כל הפוסטים
-                      </button>
-                    </li>
-                    <li>
-                      <button className={`block ${themeClasses.hover} px-3 py-2 rounded-md transition-colors w-full text-right ${themeClasses.text}`}>
-                        דיונים חמים
-                      </button>
-                    </li>
-                    <li>
-                      <button className={`block ${themeClasses.hover} px-3 py-2 rounded-md transition-colors w-full text-right ${themeClasses.text}`}>
-                        ביקורות
-                      </button>
-                    </li>
-                  </ul>
-                </div>
-                
-                <div>
-                  <h3 className="text-lg font-semibold mb-3 text-green-500">סדרות</h3>
-                  <ul className="space-y-2">
-                    <li>
-                      <button 
-                        onClick={() => {setActiveTab('series'); toggleMenu();}}
-                        className={`block ${themeClasses.hover} px-3 py-2 rounded-md transition-colors w-full text-right ${themeClasses.text}`}
-                      >
-                        כל הסדרות
-                      </button>
-                    </li>
-                    <li>
-                      <button className={`block ${themeClasses.hover} px-3 py-2 rounded-md transition-colors w-full text-right ${themeClasses.text}`}>
-                        סדרות חדשות
-                      </button>
-                    </li>
-                  </ul>
-                </div>
-                
-                <div>
-                  <h3 className="text-lg font-semibold mb-3 text-purple-500">סרטים</h3>
-                  <ul className="space-y-2">
-                    <li>
-                      <button 
-                        onClick={() => {setActiveTab('movies'); toggleMenu();}}
-                        className={`block ${themeClasses.hover} px-3 py-2 rounded-md transition-colors w-full text-right ${themeClasses.text}`}
-                      >
-                        כל הסרטים
-                      </button>
-                    </li>
-                    <li>
-                      <button className={`block ${themeClasses.hover} px-3 py-2 rounded-md transition-colors w-full text-right ${themeClasses.text}`}>
-                        סרטים חדשים
-                      </button>
-                    </li>
-                  </ul>
-                </div>
+                ))}
               </div>
             </div>
           )}
         </div>
       </nav>
 
-      {/* מודל התחברות */}
-      <LoginModal 
-        isOpen={isLoginModalOpen} 
+      {/* מודאל התחברות */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
         themeClasses={themeClasses}
       />

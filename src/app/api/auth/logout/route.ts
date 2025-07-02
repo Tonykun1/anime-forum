@@ -1,19 +1,18 @@
-// src/app/api/auth/logout/route.ts - קובץ נפרד להתנתקות
-import { NextResponse } from 'next/server';
+// src/app/api/auth/logout/route.ts - יציאה מהמערכת
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
+    // Clear the auth cookie
     const response = NextResponse.json({
-      message: 'התנתקות בוצעה בהצלחה',
-      success: true
+      message: 'התנתקת בהצלחה'
     });
     
-    // מחק cookie
     response.cookies.set('auth-token', '', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 0
+      maxAge: 0 // Expire immediately
     });
     
     return response;
@@ -21,7 +20,7 @@ export async function POST() {
   } catch (error: any) {
     console.error('Logout error:', error);
     return NextResponse.json(
-      { error: 'שגיאה בהתנתקות' },
+      { error: 'שגיאה ביציאה' },
       { status: 500 }
     );
   }

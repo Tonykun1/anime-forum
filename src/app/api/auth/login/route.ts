@@ -1,17 +1,17 @@
-// src/app/api/auth/login/route.ts - עם תיקון סיסמאות
+// src/app/api/auth/login/route.ts - התחברות מתוקנת עם PostgreSQL
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db/connection';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { db } from '@/lib/db/connection';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { email, password } = body;
     
-    console.log('🔐 Login attempt:', { email, password: '***' });
+    console.log('🔑 Login attempt for:', email);
     
     // Validation
     if (!email || !password) {
@@ -22,78 +22,60 @@ export async function POST(request: NextRequest) {
     }
     
     // Find user by email
+    console.log('🔍 Looking for user...');
     const result = await db.query(
-      'SELECT id, username, email, password, role, avatar FROM users WHERE email = $1',
+      'SELECT * FROM users WHERE email = $1',
       [email]
     );
     
     if (result.rows.length === 0) {
-      console.log('❌ User not found:', email);
       return NextResponse.json(
         { error: 'אימייל או סיסמה שגויים' },
         { status: 401 }
       );
     }
-
+    
     const user = result.rows[0];
-    console.log('👤 User found:', { username: user.username, hasPassword: !!user.password });
+    console.log('👤 Found user:', { id: user.id, username: user.username });
     
-    // Check password - תיקון זמני לסיסמאות לא מוצפנות
-    let isPasswordValid = false;
+    // Check password
+    console.log('🔐 Verifying password...');
+    const isValidPassword = await bcrypt.compare(password, user.password);
     
-    if (user.password && user.password.startsWith('$2b$')) {
-      // סיסמה מוצפנת - השתמש ב-bcrypt
-      console.log('🔒 Checking encrypted password');
-      isPasswordValid = await bcrypt.compare(password, user.password);
-    } else {
-      // סיסמה לא מוצפנת - השווה ישירות (זמני!)
-      console.log('⚠️ Checking plain text password (will encrypt after successful login)');
-      isPasswordValid = password === user.password;
-      
-      // אם הסיסמה נכונה, הצפן אותה במסד הנתונים
-      if (isPasswordValid) {
-        console.log('✅ Password correct, encrypting for future use...');
-        const hashedPassword = await bcrypt.hash(password, 12);
-        await db.query(
-          'UPDATE users SET password = $1 WHERE id = $2',
-          [hashedPassword, user.id]
-        );
-        console.log('🔐 Password encrypted successfully');
-      }
-    }
-    
-    console.log('🔍 Password validation result:', isPasswordValid);
-    
-    if (!isPasswordValid) {
+    if (!isValidPassword) {
       return NextResponse.json(
         { error: 'אימייל או סיסמה שגויים' },
         { status: 401 }
       );
     }
-
-    // Generate JWT token
-    const token = jwt.sign({
-      userId: user.id,
-      username: user.username,
-      email: user.email,
-      role: user.role
-    }, JWT_SECRET, { expiresIn: '7d' });
-
-    const userWithoutPassword = {
+    
+    console.log('✅ Password verified successfully');
+    
+    // Create session user object
+    const sessionUser = {
       id: user.id,
       username: user.username,
       email: user.email,
       role: user.role,
       avatar: user.avatar
     };
-
-    console.log('✅ Login successful for:', user.username);
+    
+    // Generate JWT token
+    const token = jwt.sign(sessionUser, JWT_SECRET, { expiresIn: '7d' });
     
     // Set HTTP-only cookie
     const response = NextResponse.json({
-      message: 'התחברת בהצלחה',
-      user: userWithoutPassword
-    });
+      message: 'התחברות בוצעה בהצלחה',
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar,
+        joinDate: user.created_at,
+        postsCount: 0,
+        likesCount: 0
+      }
+    }, { status: 200 });
     
     response.cookies.set('auth-token', token, {
       httpOnly: true,
@@ -107,7 +89,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('❌ Login API error:', error);
     return NextResponse.json(
-      { error: 'שגיאה בהתחברות: ' + error.message },
+      { error: 'שגיאה בהתחברות: ' + (error.message || 'שגיאה לא ידועה') },
       { status: 500 }
     );
   }

@@ -1,52 +1,65 @@
-// src/app/api/auth/me/route.ts - Auth endpoint עם PostgreSQL
+// src/app/api/auth/me/route.ts - בדיקת משתמש מחובר
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db/connection';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 export async function GET(request: NextRequest) {
   try {
-    // כרגע נחזיר משתמש ברירת מחדל
-    // בעתיד נוכל להוסיף אימות אמיתי
+    // Get token from cookie
+    const token = request.cookies.get('auth-token')?.value;
     
-    // נסה לקבל משתמש ברירת מחדל מהמסד
-    const result = await db.query(
-      'SELECT id, username, email, avatar, role FROM users WHERE email = $1',
-      ['user@example.com']
-    );
-
-    let user;
-    if (result.rows.length > 0) {
-      user = result.rows[0];
-    } else {
-      // אם אין משתמש, צור אחד
-      const newUserResult = await db.query(
-        'INSERT INTO users (username, email, role) VALUES ($1, $2, $3) RETURNING id, username, email, avatar, role',
-        ['משתמש', 'user@example.com', 'user']
+    if (!token) {
+      return NextResponse.json(
+        { error: 'לא מחובר' },
+        { status: 401 }
       );
-      user = newUserResult.rows[0];
     }
-
+    
+    // Verify token
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+      return NextResponse.json(
+        { error: 'טוקן לא תקין' },
+        { status: 401 }
+      );
+    }
+    
+    // Get fresh user data from database
+    const result = await db.query(
+      'SELECT id, username, email, avatar, role, created_at FROM users WHERE id = $1',
+      [decoded.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return NextResponse.json(
+        { error: 'משתמש לא נמצא' },
+        { status: 404 }
+      );
+    }
+    
+    const user = result.rows[0];
+    
     return NextResponse.json({
       user: {
         id: user.id,
         username: user.username,
         email: user.email,
         avatar: user.avatar,
-        role: user.role
+        joinDate: user.created_at,
+        postsCount: 0,
+        likesCount: 0
       }
     });
-
-  } catch (error: any) {
-    console.error('Error in auth/me:', error);
     
-    // אם יש בעיה עם המסד, החזר משתמש ברירת מחדל
-    return NextResponse.json({
-      user: {
-        id: 1,
-        username: 'משתמש',
-        email: 'user@example.com',
-        role: 'user',
-        avatar: null
-      }
-    });
+  } catch (error: any) {
+    console.error('Get user error:', error);
+    return NextResponse.json(
+      { error: 'שגיאה בקבלת נתוני משתמש' },
+      { status: 500 }
+    );
   }
 }

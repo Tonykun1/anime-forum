@@ -1,7 +1,7 @@
-// src/components/LoginModal.tsx
+// src/app/Components/LoginModal.tsx - מתוקן לעבוד עם API החדש
 import React, { useState } from 'react';
 import { X, Eye, EyeOff, LogIn, UserPlus } from 'lucide-react';
-import { useAuth } from '.././Context/AuthContext';
+import { useAuth } from '../Context/AuthContext';
 import { LoginFormData, RegisterFormData } from '../types/auth';
 
 interface LoginModalProps {
@@ -64,8 +64,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, themeClasses }
       } else {
         setError('אימייל או סיסמה שגויים');
       }
-    } catch (err) {
-      setError('שגיאה בהתחברות');
+    } catch (err: any) {
+      setError(err.message || 'שגיאה בהתחברות');
     } finally {
       setLoading(false);
     }
@@ -76,6 +76,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, themeClasses }
     setLoading(true);
     setError('');
 
+    // בדיקות validation
     if (registerForm.password !== registerForm.confirmPassword) {
       setError('הסיסמאות לא תואמות');
       setLoading(false);
@@ -88,15 +89,25 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, themeClasses }
       return;
     }
 
+    if (!registerForm.username.trim()) {
+      setError('שם משתמש נדרש');
+      setLoading(false);
+      return;
+    }
+
+    if (!registerForm.email.trim()) {
+      setError('אימייל נדרש');
+      setLoading(false);
+      return;
+    }
+
     try {
       const success = await register(registerForm);
       if (success) {
         handleClose();
-      } else {
-        setError('משתמש עם אימייל זה כבר קיים');
       }
-    } catch (err) {
-      setError('שגיאה ברישום');
+    } catch (err: any) {
+      setError(err.message || 'שגיאה ברישום');
     } finally {
       setLoading(false);
     }
@@ -106,27 +117,24 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, themeClasses }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className={`${themeClasses.cardBg} rounded-lg shadow-xl w-full max-w-md relative`}>
-        {/* כפתור סגירה */}
-        <button
-          onClick={handleClose}
-          className={`absolute top-4 right-4 ${themeClasses.textSecondary} hover:${themeClasses.text} transition-colors`}
-        >
-          <X className="w-6 h-6" />
-        </button>
-
-        {/* כותרת */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className={`text-2xl font-bold ${themeClasses.text} text-center`}>
-            {isLogin ? 'התחברות' : 'הרשמה'}
-          </h2>
-          <p className={`text-center ${themeClasses.textSecondary} mt-2`}>
-            {isLogin ? 'ברוכים השובים לפורום האנימה!' : 'הצטרפו לקהילת חובבי האנימה'}
-          </p>
-        </div>
-
-        {/* טופס */}
+      <div className={`${themeClasses.cardBg} rounded-lg shadow-xl w-full max-w-md relative max-h-[90vh] overflow-y-auto`}>
         <div className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className={`text-2xl font-bold ${themeClasses.text}`}>
+              {isLogin ? 'התחברות' : 'הרשמה'}
+            </h2>
+            <button
+              onClick={handleClose}
+              className={`${themeClasses.textSecondary} hover:${themeClasses.text} transition-colors`}
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <p className={`${themeClasses.textSecondary} mb-6 text-center`}>
+            הצטרפו לקהילת חובבי האנימה
+          </p>
+
           {error && (
             <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md text-sm">
               {error}
@@ -301,6 +309,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, themeClasses }
                 onClick={() => {
                   setIsLogin(!isLogin);
                   setError('');
+                  resetForms();
                 }}
                 className="text-blue-500 hover:text-blue-600 font-medium mr-1"
               >
@@ -308,17 +317,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, themeClasses }
               </button>
             </p>
           </div>
-
-          {/* פרטי התחברות לדוגמה */}
-          {isLogin && (
-            <div className={`mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md`}>
-              <p className={`text-xs ${themeClasses.textSecondary} mb-2`}>לדוגמה:</p>
-              <p className={`text-xs ${themeClasses.textSecondary}`}>
-                אימייל: otaku@example.com<br />
-                סיסמה: 123456
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </div>

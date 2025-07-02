@@ -1,12 +1,16 @@
-// src/lib/db/schema.ts - Updated schema with authentication support
+// src/lib/db/schema.ts - טבלה מתוקנת עם כל השדות הנדרשים
 export const createUsersTable = `
   CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
+    password VARCHAR(255) NOT NULL,
     avatar VARCHAR(500),
     role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('user', 'editor', 'admin')),
+    bio TEXT,
+    cover_image VARCHAR(500),
+    posts_count INTEGER DEFAULT 0,
+    likes_count INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
@@ -27,7 +31,7 @@ export const createPostsTable = `
     content TEXT NOT NULL,
     image_url VARCHAR(500),
     category_id INTEGER REFERENCES categories(id),
-    author_id INTEGER REFERENCES users(id),
+    author_id INTEGER REFERENCES users(id) DEFAULT 1,
     likes_count INTEGER DEFAULT 0,
     comments_count INTEGER DEFAULT 0,
     views_count INTEGER DEFAULT 0,
@@ -35,30 +39,52 @@ export const createPostsTable = `
   );
 `;
 
-// Add indexes for better performance
-export const createIndexes = `
-  CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-  CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-  CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id);
-  CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category_id);
-  CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at DESC);
-`;
-
-// Add trigger for updated_at timestamp
-export const createTriggers = `
-  CREATE OR REPLACE FUNCTION update_updated_at_column()
-  RETURNS TRIGGER AS $$
+// פונקציה לעדכון הטבלה הקיימת (אם יש)
+export const updateUsersTable = `
+  DO $$ 
   BEGIN
-      NEW.updated_at = CURRENT_TIMESTAMP;
-      RETURN NEW;
-  END;
-  $$ language 'plpgsql';
-
-  DROP TRIGGER IF EXISTS update_users_updated_at ON users;
-  CREATE TRIGGER update_users_updated_at 
-      BEFORE UPDATE ON users 
-      FOR EACH ROW 
-      EXECUTE FUNCTION update_updated_at_column();
+    -- הוספת עמודות חסרות אם הן לא קיימות
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='password') THEN
+      ALTER TABLE users ADD COLUMN password VARCHAR(255);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='role') THEN
+      ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user';
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='avatar') THEN
+      ALTER TABLE users ADD COLUMN avatar VARCHAR(500);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='bio') THEN
+      ALTER TABLE users ADD COLUMN bio TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='cover_image') THEN
+      ALTER TABLE users ADD COLUMN cover_image VARCHAR(500);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='posts_count') THEN
+      ALTER TABLE users ADD COLUMN posts_count INTEGER DEFAULT 0;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='likes_count') THEN
+      ALTER TABLE users ADD COLUMN likes_count INTEGER DEFAULT 0;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='updated_at') THEN
+      ALTER TABLE users ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+    
+    -- הוספת constraints אם חסרים
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_name='users' AND constraint_name='users_username_key') THEN
+      ALTER TABLE users ADD CONSTRAINT users_username_key UNIQUE (username);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.check_constraints WHERE constraint_name='users_role_check') THEN
+      ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('user', 'editor', 'admin'));
+    END IF;
+  END $$;
 `;
 
 export const allTables = [
@@ -67,7 +93,6 @@ export const allTables = [
   createPostsTable
 ];
 
-export const allIndexes = [
-  createIndexes,
-  createTriggers
+export const tableUpdates = [
+  updateUsersTable
 ];

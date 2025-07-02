@@ -1,5 +1,5 @@
 // lib/db/index.ts - Main exports for MongoDB
-export { connectDB } from './connection';
+export { db } from './connection';
 export { setupDatabase, checkIfSetupNeeded, verifySetup } from './setup';
 export { seedDatabase } from './seed';
 export { User } from './models/User';

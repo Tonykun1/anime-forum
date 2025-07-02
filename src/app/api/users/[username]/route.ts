@@ -1,43 +1,44 @@
-// src/app/api/users/[username]/route.ts - API לקבלת משתמש לפי שם
+// src/app/api/users/[username]/route.ts - API לקבלת פרופיל משתמש
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db/connection';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+// Helper function to get current user from JWT
+async function getCurrentUser(request: NextRequest) {
+  try {
+    const token = request.cookies.get('auth-token')?.value;
+    if (!token) return null;
+    
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    return decoded;
+  } catch (error) {
+    return null;
+  }
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { username: string } }
 ) {
   try {
-    const username = params.username;
+    const { username } = params;
+    const currentUser = await getCurrentUser(request);
     
-    console.log('👤 Fetching user profile:', username);
+    console.log('🔍 Fetching profile for username:', username);
     
-    // בדוק שהשם תקין
-    if (!username || username.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'שם משתמש לא תקין' },
-        { status: 400 }
-      );
-    }
-    
-    // קבל פרטי משתמש עם מספר הפוסטים
+    // Get user profile
     const userResult = await db.query(`
       SELECT 
-        u.id,
-        u.username,
-        u.email,
-        u.avatar,
-        u.role,
-        u.created_at,
-        u.updated_at,
-        COUNT(p.id) as posts_count
-      FROM users u
-      LEFT JOIN posts p ON u.id = p.author_id
-      WHERE LOWER(u.username) = LOWER($1)
-      GROUP BY u.id, u.username, u.email, u.avatar, u.role, u.created_at, u.updated_at
-    `, [username.trim()]);
+        id, username, email, avatar, role, created_at,
+        (SELECT COUNT(*) FROM posts WHERE author_id = users.id) as posts_count,
+        0 as likes_count
+      FROM users 
+      WHERE username = $1
+    `, [username]);
     
     if (userResult.rows.length === 0) {
-      console.log('❌ User not found:', username);
       return NextResponse.json(
         { error: 'משתמש לא נמצא' },
         { status: 404 }
@@ -46,29 +47,31 @@ export async function GET(
     
     const user = userResult.rows[0];
     
-    // פורמט התגובה
+    // Check if this is the current user's own profile
+    const isOwnProfile = currentUser && currentUser.id === user.id;
+    
     const userProfile = {
       id: user.id,
       username: user.username,
       email: user.email,
       avatar: user.avatar,
+      coverImage: `https://via.placeholder.com/800x200/4F46E5/FFFFFF?text=${user.username}`,
+      bio: 'משתמש חדש בקהילה!',
+      joinDate: user.created_at,
+      postsCount: parseInt(user.posts_count),
+      likesCount: user.likes_count,
       role: user.role,
-      created_at: user.created_at,
-      updated_at: user.updated_at,
-      posts_count: parseInt(user.posts_count) || 0
+      isOwnProfile
     };
     
-    console.log('✅ User found:', user.username, 'with', userProfile.posts_count, 'posts');
+    console.log('✅ User profile found:', userProfile);
     
-    return NextResponse.json({
-      user: userProfile,
-      success: true
-    });
+    return NextResponse.json({ user: userProfile });
     
   } catch (error: any) {
-    console.error('❌ Error fetching user:', error);
+    console.error('❌ Error fetching user profile:', error);
     return NextResponse.json(
-      { error: 'שגיאה בטעינת המשתמש: ' + error.message },
+      { error: 'שגיאה בטעינת הפרופיל' },
       { status: 500 }
     );
   }

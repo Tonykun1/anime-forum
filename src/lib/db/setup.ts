@@ -1,7 +1,6 @@
-// src/lib/db/setup.ts - Updated setup with authentication support
+// src/lib/db/setup.ts - מתוקן
 import { db } from './connection';
-import { allTables, allIndexes } from './schema';
-import { allSeedData } from './seed';
+import { allTables } from './schema';
 
 export async function setupDatabase(): Promise<{ success: boolean; message: string; details?: any }> {
   try {
@@ -14,25 +13,15 @@ export async function setupDatabase(): Promise<{ success: boolean; message: stri
     await db.query('DROP TABLE IF EXISTS users CASCADE;');
 
     // Create all tables
-    console.log('📋 Creating tables...');
+    console.log('🏗️ Creating tables...');
     for (const [index, tableQuery] of allTables.entries()) {
       await db.query(tableQuery);
       console.log(`✅ Table ${index + 1}/${allTables.length} created`);
     }
 
-    // Create indexes and triggers
-    console.log('🔗 Creating indexes and triggers...');
-    for (const [index, indexQuery] of allIndexes.entries()) {
-      await db.query(indexQuery);
-      console.log(`✅ Index/Trigger ${index + 1}/${allIndexes.length} created`);
-    }
-
-    // Insert seed data
+    // Insert basic seed data
     console.log('🌱 Inserting seed data...');
-    for (const [index, seedQuery] of allSeedData.entries()) {
-      await db.query(seedQuery);
-      console.log(`✅ Seed data ${index + 1}/${allSeedData.length} inserted`);
-    }
+    await insertSeedData();
 
     // Verify setup
     const verification = await verifySetup();
@@ -41,7 +30,7 @@ export async function setupDatabase(): Promise<{ success: boolean; message: stri
     
     return {
       success: true,
-      message: 'Database setup completed successfully with authentication support!',
+      message: 'Database setup completed successfully!',
       details: verification
     };
 
@@ -54,17 +43,48 @@ export async function setupDatabase(): Promise<{ success: boolean; message: stri
   }
 }
 
+async function insertSeedData(): Promise<void> {
+  // Insert categories
+  const categories = [
+    { name: 'שונן', color: '#FF6B6B' },
+    { name: 'אקשן', color: '#4ECDC4' },
+    { name: 'רומנטיקה', color: '#45B7D1' },
+    { name: 'פנטזיה', color: '#96CEB4' },
+    { name: 'מכה', color: '#FFEAA7' },
+    { name: 'דרמה', color: '#DDA0DD' }
+  ];
+
+  for (const category of categories) {
+    await db.query(
+      'INSERT INTO categories (name, color) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING',
+      [category.name, category.color]
+    );
+  }
+
+  // Insert a default user if none exists
+  const userCheck = await db.query('SELECT COUNT(*) FROM users');
+  if (parseInt(userCheck.rows[0].count) === 0) {
+    const bcrypt = require('bcryptjs');
+    const defaultPassword = await bcrypt.hash('123456', 12);
+    
+    await db.query(`
+      INSERT INTO users (username, email, password, avatar, role, bio, cover_image) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [
+      'Admin',
+      'admin@anime-forum.com',
+      defaultPassword,
+      'https://via.placeholder.com/100x100/6366F1/FFFFFF?text=AD',
+      'admin',
+      'מנהל האתר',
+      'https://via.placeholder.com/800x200/4F46E5/FFFFFF?text=Admin'
+    ]);
+  }
+}
+
 export async function verifySetup(): Promise<any> {
   try {
-    // Check tables exist with correct columns
-    const usersCheck = await db.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'users' 
-      AND table_schema = 'public'
-      ORDER BY column_name;
-    `);
-
+    // Check tables exist
     const tablesCheck = await db.query(`
       SELECT table_name 
       FROM information_schema.tables 
@@ -80,7 +100,6 @@ export async function verifySetup(): Promise<any> {
 
     return {
       tablesCreated: tablesCheck.rows.map(row => row.table_name),
-      usersTableColumns: usersCheck.rows.map(row => `${row.column_name} (${row.data_type})`),
       dataCount: {
         categories: parseInt(categoriesCount.rows[0].count),
         users: parseInt(usersCount.rows[0].count),
@@ -94,7 +113,6 @@ export async function verifySetup(): Promise<any> {
 
 export async function checkIfSetupNeeded(): Promise<boolean> {
   try {
-    // Check if tables exist
     const tablesCheck = await db.query(`
       SELECT COUNT(*) as table_count
       FROM information_schema.tables 
@@ -103,24 +121,7 @@ export async function checkIfSetupNeeded(): Promise<boolean> {
     `);
 
     const tableCount = parseInt(tablesCheck.rows[0].table_count);
-    
-    if (tableCount < 3) {
-      return true; // Need setup if less than 3 tables exist
-    }
-
-    // Check if users table has password_hash column (for authentication)
-    const passwordHashCheck = await db.query(`
-      SELECT COUNT(*) as column_count
-      FROM information_schema.columns 
-      WHERE table_name = 'users' 
-      AND column_name = 'password_hash'
-      AND table_schema = 'public';
-    `);
-
-    const hasPasswordHash = parseInt(passwordHashCheck.rows[0].column_count) > 0;
-    
-    return !hasPasswordHash; // Need setup if password_hash column doesn't exist
-
+    return tableCount < 3; // Need setup if less than 3 tables exist
   } catch (error) {
     console.error('Error checking setup status:', error);
     return true; // Assume setup needed if we can't check

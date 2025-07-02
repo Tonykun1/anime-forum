@@ -1,8 +1,10 @@
-// lib/auth.ts - Updated with PostgreSQL user registration
+// src/lib/auth.ts - מימוש מלא של פונקציות האימות
 import { NextRequest } from 'next/server';
-import { db } from './db/connection';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { db } from './db/connection';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 export interface SessionUser {
   id: number;
@@ -12,38 +14,36 @@ export interface SessionUser {
   avatar?: string;
 }
 
-// Verify JWT token
+export interface DBUser {
+  id: number;
+  username: string;
+  email: string;
+  password: string;
+  avatar?: string;
+  role: string;
+  bio?: string;
+  cover_image?: string;
+  posts_count: number;
+  likes_count: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+// בדיקת אימות מטוקן
 export async function verifyToken(request: NextRequest): Promise<SessionUser | null> {
   try {
     const token = request.cookies.get('auth-token')?.value;
     if (!token) return null;
     
-    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
-    
-    // Fetch user from PostgreSQL
-    const result = await db.query(
-      'SELECT id, username, email, avatar FROM users WHERE id = $1',
-      [decoded.id]
-    );
-    
-    if (result.rows.length === 0) return null;
-    
-    const user = result.rows[0];
-    return {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      role: user.role || 'user',
-      avatar: user.avatar
-    };
+    const decoded = jwt.verify(token, JWT_SECRET) as SessionUser;
+    return decoded;
   } catch (error) {
-    console.error('Token verification error:', error);
+    console.error('Token verification failed:', error);
     return null;
   }
 }
 
-// Register new user in PostgreSQL
+// רישום משתמש חדש
 export async function registerUser(
   username: string,
   email: string,
@@ -51,128 +51,169 @@ export async function registerUser(
   avatar?: string
 ): Promise<{ success: boolean; user?: SessionUser; error?: string }> {
   try {
-    // Validation
-    if (!username || username.length < 2) {
-      return { success: false, error: 'שם משתמש חייב להכיל לפחות 2 תווים' };
-    }
-    
-    if (!email || !email.includes('@')) {
-      return { success: false, error: 'כתובת אימייל לא חוקית' };
-    }
-    
-    if (!password || password.length < 6) {
-      return { success: false, error: 'סיסמה חייבת להכיל לפחות 6 תווים' };
-    }
-    
-    // Check if user already exists
+    // בדיקה אם המשתמש כבר קיים
     const existingUser = await db.query(
-      'SELECT id FROM users WHERE email = $1 OR username = $2',
-      [email.toLowerCase(), username]
+      'SELECT id, email, username FROM users WHERE email = $1 OR username = $2',
+      [email, username]
     );
     
     if (existingUser.rows.length > 0) {
-      return { success: false, error: 'משתמש עם האימייל או שם המשתמש כבר קיים' };
+      const existing = existingUser.rows[0];
+      if (existing.email === email) {
+        return { success: false, error: 'המייל כבר רשום במערכת' };
+      }
+      if (existing.username === username) {
+        return { success: false, error: 'שם המשתמש כבר תפוס' };
+      }
     }
     
-    // Hash password
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    // הצפנת סיסמה
+    const saltRounds = 12;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
     
-    // Insert new user into PostgreSQL
-    const insertResult = await db.query(
-      `INSERT INTO users (username, email, password_hash, avatar, role, created_at) 
-       VALUES ($1, $2, $3, $4, $5, NOW()) 
-       RETURNING id, username, email, avatar, role, created_at`,
-      [username.trim(), email.toLowerCase().trim(), hashedPassword, avatar || null, 'user']
-    );
+    // יצירת אווטר ברירת מחדל אם לא סופק
+    const defaultAvatar = avatar || `https://via.placeholder.com/100x100/6366F1/FFFFFF?text=${username.substring(0, 2).toUpperCase()}`;
+    const defaultCoverImage = `https://via.placeholder.com/800x200/4F46E5/FFFFFF?text=${username}`;
     
-    const newUser = insertResult.rows[0];
+    // הכנסת המשתמש החדש
+    const result = await db.query(`
+      INSERT INTO users (username, email, password, avatar, cover_image, role, bio, posts_count, likes_count) 
+      VALUES ($1, $2, $3, $4, $5, 'user', 'משתמש חדש באתר!', 0, 0)
+      RETURNING id, username, email, avatar, role, bio, cover_image, posts_count, likes_count, created_at
+    `, [username, email, passwordHash, defaultAvatar, defaultCoverImage]);
     
-    return {
-      success: true,
-      user: {
-        id: newUser.id,
-        username: newUser.username,
-        email: newUser.email,
-        role: newUser.role,
-        avatar: newUser.avatar
-      }
+    if (result.rows.length === 0) {
+      return { success: false, error: 'שגיאה ביצירת המשתמש' };
+    }
+    
+    const newUser = result.rows[0];
+    const sessionUser: SessionUser = {
+      id: newUser.id,
+      username: newUser.username,
+      email: newUser.email,
+      role: newUser.role,
+      avatar: newUser.avatar
     };
+    
+    return { success: true, user: sessionUser };
     
   } catch (error: any) {
     console.error('Registration error:', error);
     return { 
       success: false, 
-      error: 'שגיאה ביצירת המשתמש: ' + error.message 
+      error: error.code === '23505' ? 'המייל או שם המשתמש כבר קיימים' : 'שגיאה ברישום'
     };
   }
 }
 
-// Login user
+// התחברות משתמש
 export async function loginUser(
   email: string,
-  password: string
+  password: string,
+  ipAddress?: string
 ): Promise<{ success: boolean; user?: SessionUser; token?: string; error?: string }> {
   try {
-    // Find user in PostgreSQL
+    // חיפוש המשתמש
     const result = await db.query(
-      'SELECT id, username, email, password_hash, avatar, role FROM users WHERE email = $1',
-      [email.toLowerCase()]
+      'SELECT * FROM users WHERE email = $1',
+      [email]
     );
     
     if (result.rows.length === 0) {
       return { success: false, error: 'אימייל או סיסמה שגויים' };
     }
     
-    const user = result.rows[0];
+    const user: DBUser = result.rows[0];
     
-    // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
-    if (!isPasswordValid) {
+    // בדיקת סיסמה
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
       return { success: false, error: 'אימייל או סיסמה שגויים' };
     }
     
-    // Generate JWT token
-    const token = generateToken({
+    // יצירת טוקן
+    const sessionUser: SessionUser = {
       id: user.id,
       username: user.username,
       email: user.email,
       role: user.role,
       avatar: user.avatar
-    });
-    
-    return {
-      success: true,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        avatar: user.avatar
-      },
-      token
     };
+    
+    const token = generateToken(sessionUser);
+    
+    return { success: true, user: sessionUser, token };
     
   } catch (error: any) {
     console.error('Login error:', error);
-    return { 
-      success: false, 
-      error: 'שגיאה בהתחברות: ' + error.message 
-    };
+    return { success: false, error: 'שגיאה בהתחברות' };
   }
 }
 
-// Generate JWT token
-export function generateToken(user: any): string {
-  const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-  return jwt.sign(
-    { 
-      id: user.id, 
-      username: user.username, 
-      email: user.email,
-      role: user.role 
-    },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  );
+// יצירת טוקן JWT
+export function generateToken(user: SessionUser): string {
+  return jwt.sign(user, JWT_SECRET, { expiresIn: '7d' });
+}
+
+// עדכון פרופיל משתמש
+export async function updateUserProfile(
+  userId: number, 
+  updates: Partial<Omit<DBUser, 'id' | 'email' | 'password' | 'created_at'>>
+): Promise<{ success: boolean; user?: SessionUser; error?: string }> {
+  try {
+    const allowedFields = ['username', 'avatar', 'bio', 'cover_image'];
+    const updateFields: string[] = [];
+    const values: any[] = [];
+    let paramCount = 1;
+    
+    Object.entries(updates).forEach(([key, value]) => {
+      if (allowedFields.includes(key) && value !== undefined) {
+        updateFields.push(`${key} = $${paramCount}`);
+        values.push(value);
+        paramCount++;
+      }
+    });
+    
+    if (updateFields.length === 0) {
+      return { success: false, error: 'אין שדות לעדכון' };
+    }
+    
+    updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+    values.push(userId);
+    
+    const query = `
+      UPDATE users 
+      SET ${updateFields.join(', ')}
+      WHERE id = $${paramCount}
+      RETURNING id, username, email, avatar, role
+    `;
+    
+    const result = await db.query(query, values);
+    
+    if (result.rows.length === 0) {
+      return { success: false, error: 'משתמש לא נמצא' };
+    }
+    
+    const updatedUser = result.rows[0];
+    return { success: true, user: updatedUser };
+    
+  } catch (error: any) {
+    console.error('Profile update error:', error);
+    return { success: false, error: 'שגיאה בעדכון הפרופיל' };
+  }
+}
+
+// קבלת משתמש לפי ID
+export async function getUserById(userId: number): Promise<SessionUser | null> {
+  try {
+    const result = await db.query(
+      'SELECT id, username, email, avatar, role FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    return result.rows.length > 0 ? result.rows[0] : null;
+  } catch (error) {
+    console.error('Get user error:', error);
+    return null;
+  }
 }
