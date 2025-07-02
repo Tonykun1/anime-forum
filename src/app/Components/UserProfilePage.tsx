@@ -1,18 +1,21 @@
-// src/app/Components/UserProfilePage.tsx - עם טעינת פוסטים מהשרת
-import React, { useState, useEffect } from 'react';
-import { Calendar, Heart, MessageSquare, Edit3, Save, X, Camera, Star, Clock, Eye, RefreshCw } from 'lucide-react';
+// src/app/Components/UserProfilePage.tsx - תוקן להתאים לטיפוסים החדשים
+import React, { useState } from 'react';
+import { Calendar, Heart, MessageSquare, Edit3, Save, X, Camera, Star, Clock, Eye } from 'lucide-react';
 import { useAuth } from '../Context/AuthContext';
-import ImageUpload from './ImageUpload';
 
-interface UserPost {
-  id: string;
+// טיפוס מתוקן שמתאים לנתונים מה-API
+interface ForumPostData {
+  id: string | number;
   title: string;
   content: string;
-  image_url?: string;
+  author: {
+    username: string;
+  };
   likes_count: number;
   comments_count: number;
   views_count: number;
   created_at: string;
+  image_url?: string;
   category: {
     name: string;
     color: string;
@@ -28,20 +31,19 @@ interface UserProfilePageProps {
     border: string;
     hover: string;
   };
+  userPosts: ForumPostData[];
   onBack: () => void;
   onCreatePost: () => void;
 }
 
 const UserProfilePage: React.FC<UserProfilePageProps> = ({ 
   themeClasses, 
+  userPosts, 
   onBack,
   onCreatePost 
 }) => {
   const { user, updateUserProfile } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
-  const [userPosts, setUserPosts] = useState<UserPost[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     username: user?.username || '',
     bio: user?.bio || '',
@@ -49,51 +51,10 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
     coverImage: user?.coverImage || ''
   });
 
-  useEffect(() => {
-    if (user) {
-      fetchUserPosts();
-    }
-  }, [user]);
-
-  const fetchUserPosts = async () => {
-    if (!user) return;
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const response = await fetch(`/api/posts/user/${user.id}`);
-      if (response.ok) {
-        const data = await response.json();
-        setUserPosts(data.posts || []);
-      } else {
-        // If specific user posts endpoint doesn't exist, fetch all posts and filter
-        const allPostsResponse = await fetch('/api/posts');
-        if (allPostsResponse.ok) {
-          const allData = await allPostsResponse.json();
-          // Filter posts by current user (you might need to adjust this based on your data structure)
-          const filteredPosts = allData.posts.filter((post: any) => 
-            post.author?.username === user.username ||
-            post.author?.id === user.id ||
-            post.author_id === user.id
-          );
-          setUserPosts(filteredPosts);
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching user posts:', err);
-      setError('שגיאה בטעינת הפוסטים');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (!user) return null;
 
-  const handleSave = async () => {
-    if (updateUserProfile) {
-      await updateUserProfile(editForm);
-    }
+  const handleSave = () => {
+    updateUserProfile(editForm);
     setIsEditing(false);
   };
 
@@ -107,23 +68,19 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
     setIsEditing(false);
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
-    if (diffInHours < 1) return 'עכשיו';
-    if (diffInHours < 24) return `לפני ${diffInHours} שעות`;
-    if (diffInHours < 48) return 'אתמול';
-    
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) return `לפני ${diffInDays} ימים`;
-    
-    return date.toLocaleDateString('he-IL');
-  };
+  // פילטר פוסטים של המשתמש הנוכחי (אם יש מידע על המחבר)
+  const currentUserPosts = userPosts.filter(post => 
+    post.author.username === user.username
+  );
 
-  const handleRefreshPosts = () => {
-    fetchUserPosts();
+  // פורמט תאריך
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('he-IL');
+    } catch {
+      return 'תאריך לא זמין';
+    }
   };
 
   return (
@@ -148,15 +105,13 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
           
           {/* עריכת תמונת רקע */}
           {isEditing && (
-            <div className="absolute top-4 right-4 max-w-xs">
-              <ImageUpload
+            <div className="absolute top-4 right-4">
+              <input
+                type="url"
                 value={editForm.coverImage}
-                onChange={(url) => setEditForm(prev => ({ ...prev, coverImage: url }))}
-                label=""
-                placeholder="שנה תמונת רקע"
-                previewClassName="w-16 h-16"
-                className="bg-black/50 text-white"
-                themeClasses={themeClasses}
+                onChange={(e) => setEditForm(prev => ({ ...prev, coverImage: e.target.value }))}
+                placeholder="קישור לתמונת רקע"
+                className="px-3 py-2 rounded-lg bg-black/50 text-white placeholder-gray-300 border border-white/20"
               />
             </div>
           )}
@@ -166,217 +121,210 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
         <div className="absolute -bottom-16 right-8 flex items-end space-x-4">
           <div className="relative">
             <img
-              src={user.avatar || "https://via.placeholder.com/128x128/6366F1/FFFFFF?text=U"}
+              src={editForm.avatar || `https://via.placeholder.com/120x120/6366F1/FFFFFF?text=${user.username.charAt(0).toUpperCase()}`}
               alt={user.username}
-              className="w-32 h-32 rounded-full border-4 border-white shadow-lg"
+              className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-white object-cover"
             />
             {isEditing && (
-              <div className="absolute top-0 right-0">
-                <ImageUpload
-                  value={editForm.avatar}
-                  onChange={(url) => setEditForm(prev => ({ ...prev, avatar: url }))}
-                  label=""
-                  placeholder="שנה תמונה"
-                  previewClassName="w-8 h-8"
-                  className="bg-blue-500 text-white p-2 rounded-full"
-                  themeClasses={themeClasses}
-                />
+              <div className="absolute -bottom-2 -right-2">
+                <Camera className="w-6 h-6 text-blue-500 bg-white rounded-full p-1" />
               </div>
             )}
           </div>
         </div>
 
-        {/* כפתור עריכה */}
-        <div className="absolute top-4 left-4">
-          {!isEditing ? (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
-            >
-              <Edit3 className="w-4 h-4" />
-              <span>ערוך פרופיל</span>
-            </button>
-          ) : (
-            <div className="flex space-x-2">
+        {/* כפתורי פעולה */}
+        <div className="absolute bottom-4 left-4 flex space-x-2">
+          {isEditing ? (
+            <>
               <button
                 onClick={handleSave}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+                className="flex items-center space-x-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors"
               >
                 <Save className="w-4 h-4" />
                 <span>שמור</span>
               </button>
               <button
                 onClick={handleCancel}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+                className="flex items-center space-x-2 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
               >
                 <X className="w-4 h-4" />
                 <span>ביטול</span>
               </button>
-            </div>
+            </>
+          ) : (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="flex items-center space-x-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              <Edit3 className="w-4 h-4" />
+              <span>עריכת פרופיל</span>
+            </button>
           )}
         </div>
       </div>
 
-      {/* מידע אישי */}
-      <div className={`${themeClasses.cardBg} ${themeClasses.border} border rounded-lg p-6 mb-6 mt-16`}>
+      {/* מידע המשתמש */}
+      <div className={`${themeClasses.cardBg} ${themeClasses.border} border rounded-lg p-6 mb-8 mt-16`}>
         <div className="flex justify-between items-start">
           <div className="flex-1">
-            {!isEditing ? (
-              <>
-                <h1 className={`text-3xl font-bold ${themeClasses.text} mb-2`}>{user.username}</h1>
-                <p className={`${themeClasses.textSecondary} mb-4`}>{user.bio || 'אין תיאור עדיין'}</p>
-              </>
-            ) : (
+            {isEditing ? (
               <div className="space-y-4">
                 <div>
-                  <label className={`block text-sm font-medium ${themeClasses.text} mb-2`}>שם משתמש</label>
+                  <label className={`block text-sm font-medium ${themeClasses.text} mb-1`}>
+                    שם משתמש
+                  </label>
                   <input
                     type="text"
                     value={editForm.username}
                     onChange={(e) => setEditForm(prev => ({ ...prev, username: e.target.value }))}
-                    className={`w-full px-3 py-2 border ${themeClasses.border} rounded-lg ${themeClasses.cardBg} ${themeClasses.text}`}
+                    className={`w-full px-3 py-2 border ${themeClasses.border} rounded-md ${themeClasses.cardBg} ${themeClasses.text} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                   />
                 </div>
+                
                 <div>
-                  <label className={`block text-sm font-medium ${themeClasses.text} mb-2`}>תיאור</label>
+                  <label className={`block text-sm font-medium ${themeClasses.text} mb-1`}>
+                    אודות
+                  </label>
                   <textarea
                     value={editForm.bio}
                     onChange={(e) => setEditForm(prev => ({ ...prev, bio: e.target.value }))}
-                    rows={3}
-                    className={`w-full px-3 py-2 border ${themeClasses.border} rounded-lg ${themeClasses.cardBg} ${themeClasses.text}`}
+                    rows={4}
+                    className={`w-full px-3 py-2 border ${themeClasses.border} rounded-md ${themeClasses.cardBg} ${themeClasses.text} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                     placeholder="ספר קצת על עצמך..."
                   />
                 </div>
+
+                <div>
+                  <label className={`block text-sm font-medium ${themeClasses.text} mb-1`}>
+                    תמונת פרופיל (קישור)
+                  </label>
+                  <input
+                    type="url"
+                    value={editForm.avatar}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, avatar: e.target.value }))}
+                    className={`w-full px-3 py-2 border ${themeClasses.border} rounded-md ${themeClasses.cardBg} ${themeClasses.text} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                    placeholder="https://example.com/avatar.jpg"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div>
+                <h1 className={`text-3xl font-bold ${themeClasses.text} mb-2`}>
+                  {user.username}
+                </h1>
+                <p className={`${themeClasses.textSecondary} mb-4 leading-relaxed`}>
+                  {user.bio || "משתמש חדש בקהילה"}
+                </p>
+                
+                <div className="flex items-center space-x-6 text-sm">
+                  <div className="flex items-center space-x-2">
+                    <Calendar className="w-4 h-4 text-blue-500" />
+                    <span className={themeClasses.textSecondary}>
+                      הצטרף ב-{user.joinDate}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <MessageSquare className="w-4 h-4 text-green-500" />
+                    <span className={themeClasses.textSecondary}>
+                      {user.postsCount} פוסטים
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Heart className="w-4 h-4 text-red-500" />
+                    <span className={themeClasses.textSecondary}>
+                      {user.likesCount} לייקים
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
-            
-            <div className="flex items-center space-x-6 text-sm">
-              <div className="flex items-center space-x-2">
-                <Calendar className={`w-4 h-4 ${themeClasses.textSecondary}`} />
-                <span className={themeClasses.textSecondary}>
-                  הצטרף ב{user.joinDate ? new Date(user.joinDate).toLocaleDateString('he-IL') : 'מרץ 2024'}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <MessageSquare className={`w-4 h-4 ${themeClasses.textSecondary}`} />
-                <span className={themeClasses.textSecondary}>{userPosts.length} פוסטים</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Heart className={`w-4 h-4 ${themeClasses.textSecondary}`} />
-                <span className={themeClasses.textSecondary}>
-                  {userPosts.reduce((total, post) => total + (post.likes_count || 0), 0)} לייקים
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Eye className={`w-4 h-4 ${themeClasses.textSecondary}`} />
-                <span className={themeClasses.textSecondary}>
-                  {userPosts.reduce((total, post) => total + (post.views_count || 0), 0)} צפיות
-                </span>
-              </div>
-            </div>
           </div>
         </div>
       </div>
 
       {/* פוסטים של המשתמש */}
-      <div className={`${themeClasses.cardBg} ${themeClasses.border} border rounded-lg p-6`}>
-        <div className="flex justify-between items-center mb-6">
-          <h2 className={`text-xl font-bold ${themeClasses.text}`}>הפוסטים שלי</h2>
-          <div className="flex space-x-2">
-            <button
-              onClick={handleRefreshPosts}
-              disabled={loading}
-              className={`p-2 rounded-lg transition-colors ${themeClasses.hover} ${themeClasses.text}`}
-              title="רענן פוסטים"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-            <button
-              onClick={onCreatePost}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-            >
-              פוסט חדש
-            </button>
-          </div>
-        </div>
+      <div>
+        <h2 className={`text-2xl font-bold ${themeClasses.text} mb-6`}>
+          הפוסטים שלי ({currentUserPosts.length})
+        </h2>
         
-        {loading ? (
-          <div className="text-center py-8">
-            <RefreshCw className={`w-8 h-8 ${themeClasses.textSecondary} mx-auto mb-4 animate-spin`} />
-            <p className={themeClasses.textSecondary}>טוען פוסטים...</p>
-          </div>
-        ) : error ? (
-          <div className="text-center py-8">
-            <MessageSquare className={`w-16 h-16 ${themeClasses.textSecondary} mx-auto mb-4`} />
-            <h3 className={`text-lg font-semibold ${themeClasses.text} mb-2`}>שגיאה בטעינת הפוסטים</h3>
-            <p className={`${themeClasses.textSecondary} mb-4`}>{error}</p>
-            <button
-              onClick={handleRefreshPosts}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-            >
-              נסה שוב
-            </button>
-          </div>
-        ) : userPosts.length > 0 ? (
-          <div className="space-y-4">
-            {userPosts.map((post) => (
-              <div key={post.id} className={`${themeClasses.hover} border ${themeClasses.border} rounded-lg p-4 transition-colors`}>
-                <div className="flex gap-4">
-                  {post.image_url && (
-                    <img 
-                      src={post.image_url} 
-                      alt={post.title} 
-                      className="w-24 h-24 object-cover rounded-lg flex-shrink-0" 
-                    />
-                  )}
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className={`font-semibold ${themeClasses.text} line-clamp-2`}>{post.title}</h3>
-                      <span 
-                        className="text-xs px-2 py-1 rounded-full text-white"
-                        style={{ backgroundColor: post.category.color }}
-                      >
-                        {post.category.name}
+        {currentUserPosts.length > 0 ? (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {currentUserPosts.map((post) => (
+              <div key={post.id} className={`${themeClasses.cardBg} ${themeClasses.border} border rounded-lg overflow-hidden`}>
+                {post.image_url && (
+                  <img 
+                    src={post.image_url} 
+                    alt={post.title}
+                    className="w-full h-32 object-cover"
+                  />
+                )}
+                
+                <div className="p-4">
+                  <h3 className={`font-semibold ${themeClasses.text} mb-2 line-clamp-2`}>
+                    {post.title}
+                  </h3>
+                  
+                  <p className={`${themeClasses.textSecondary} text-sm mb-3 line-clamp-3`}>
+                    {post.content}
+                  </p>
+                  
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-1">
+                        <Star className="w-3 h-3 text-yellow-500" />
+                        <span className={themeClasses.textSecondary}>{post.likes_count}</span>
+                      </div>
+                      
+                      <div className="flex items-center space-x-1">
+                        <MessageSquare className="w-3 h-3 text-blue-500" />
+                        <span className={themeClasses.textSecondary}>{post.comments_count}</span>
+                      </div>
+                      
+                      <div className="flex items-center space-x-1">
+                        <Eye className="w-3 h-3 text-gray-500" />
+                        <span className={themeClasses.textSecondary}>{post.views_count}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-1">
+                      <Clock className="w-3 h-3 text-gray-400" />
+                      <span className={`text-xs ${themeClasses.textSecondary}`}>
+                        {formatDate(post.created_at)}
                       </span>
                     </div>
-                    <p className={`text-sm ${themeClasses.textSecondary} line-clamp-2 mb-3`}>
-                      {post.content}
-                    </p>
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-1">
-                          <Heart className="w-3 h-3 text-red-500" />
-                          <span className={themeClasses.textSecondary}>{post.likes_count || 0}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <MessageSquare className="w-3 h-3 text-blue-500" />
-                          <span className={themeClasses.textSecondary}>{post.comments_count || 0}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Eye className="w-3 h-3 text-green-500" />
-                          <span className={themeClasses.textSecondary}>{post.views_count || 0}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Clock className="w-3 h-3 text-gray-500" />
-                        <span className={themeClasses.textSecondary}>{formatDate(post.created_at)}</span>
-                      </div>
-                    </div>
+                  </div>
+                  
+                  {/* קטגוריה */}
+                  <div className="mt-2">
+                    <span 
+                      className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                      style={{ backgroundColor: post.category.color }}
+                    >
+                      {post.category.name}
+                    </span>
                   </div>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="text-center py-8">
+          <div className={`${themeClasses.cardBg} ${themeClasses.border} border rounded-lg p-8 text-center`}>
             <MessageSquare className={`w-16 h-16 ${themeClasses.textSecondary} mx-auto mb-4`} />
-            <h3 className={`text-lg font-semibold ${themeClasses.text} mb-2`}>עדיין לא פרסמת פוסטים</h3>
-            <p className={`${themeClasses.textSecondary} mb-4`}>התחל לשתף את המחשבות שלך עם הקהילה!</p>
+            <h3 className={`text-lg font-medium ${themeClasses.text} mb-2`}>
+              עדיין לא פרסמת פוסטים
+            </h3>
+            <p className={`${themeClasses.textSecondary} mb-4`}>
+              צור את הפוסט הראשון שלך ושתף עם הקהילה
+            </p>
             <button
               onClick={onCreatePost}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+              className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors"
             >
-              צור פוסט ראשון
+              צור פוסט חדש
             </button>
           </div>
         )}

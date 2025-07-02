@@ -1,39 +1,45 @@
-// app/api/setup/route.ts - Fixed Setup API with MongoDB
+// src/app/api/setup/route.ts - Database setup API
 import { NextResponse } from 'next/server';
-import { seedDatabase } from '@/lib/db/seed';
-import { setupDatabase } from '@/lib/db/setup';
+import { setupDatabase, checkIfSetupNeeded } from '@/lib/db/setup';
 
 export async function GET() {
   try {
-    // First run setup (create indexes)
-    const setupResult = await setupDatabase();
+    const needsSetup = await checkIfSetupNeeded();
     
-    if (!setupResult.success) {
-      return NextResponse.json(setupResult, { status: 500 });
-    }
-
-    // Then seed the database
-    const seedResult = await seedDatabase();
-    
-    if (seedResult.success) {
-      return NextResponse.json({
-        success: true,
-        message: 'Database setup and seeding completed successfully!',
-        setup: setupResult,
-        seed: seedResult
-      });
-    } else {
-      return NextResponse.json(seedResult, { status: 500 });
-    }
-  } catch (error: any) {
-    console.error('Setup API error:', error);
     return NextResponse.json({
-      success: false,
-      error: error.message
-    }, { status: 500 });
+      needsSetup,
+      message: needsSetup ? 'Database setup is required' : 'Database is already set up'
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: 'Failed to check setup status: ' + error.message },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST() {
-  return GET();
+  try {
+    console.log('🚀 Starting database setup via API...');
+    
+    const result = await setupDatabase();
+    
+    if (result.success) {
+      return NextResponse.json({
+        message: result.message,
+        details: result.details
+      }, { status: 200 });
+    } else {
+      return NextResponse.json(
+        { error: result.message },
+        { status: 500 }
+      );
+    }
+  } catch (error: any) {
+    console.error('Setup API error:', error);
+    return NextResponse.json(
+      { error: 'Database setup failed: ' + error.message },
+      { status: 500 }
+    );
+  }
 }

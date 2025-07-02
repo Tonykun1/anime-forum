@@ -1,55 +1,100 @@
-// app/api/posts/user/[id]/route.ts - Get posts by user ID
+// src/app/api/posts/user/[id]/route.ts - Get posts by user ID עם PostgreSQL
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db/connection';
-import { Post } from '@/lib/db/models/Post';
-import { User } from '@/lib/db/models/User';
+import { db } from '@/lib/db/connection';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    await connectDB();
+    const userIdOrName = params.id;
+    let userId: number;
     
-    const userId = params.id;
+    // בדוק אם זה מספר או שם משתמש
+    if (isNaN(parseInt(userIdOrName))) {
+      // זה שם משתמש - קבל את ה-ID
+      const userResult = await db.query(
+        'SELECT id FROM users WHERE LOWER(username) = LOWER($1)',
+        [userIdOrName]
+      );
+      
+      if (userResult.rows.length === 0) {
+        return NextResponse.json(
+          { error: 'משתמש לא נמצא' },
+          { status: 404 }
+        );
+      }
+      
+      userId = userResult.rows[0].id;
+    } else {
+      userId = parseInt(userIdOrName);
+    }
     
-    // Find user first to validate
-    const user = await User.findById(userId);
-    if (!user) {
+    
+    // בדוק שהמשתמש קיים
+    const userResult = await db.query(
+      'SELECT id, username, email, avatar, role FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
       return NextResponse.json(
         { error: 'משתמש לא נמצא' },
         { status: 404 }
       );
     }
+    
+    const user = userResult.rows[0];
 
-    // Get posts by this user
-    const posts = await Post.find({ author: userId })
-      .populate('author', 'username avatar')
-      .populate('category', 'name color')
-      .sort({ createdAt: -1 })
-      .lean();
+    // קבל פוסטים של המשתמש
+    const postsResult = await db.query(`
+      SELECT 
+        p.id,
+        p.title,
+        p.content,
+        p.image_url,
+        p.likes_count,
+        p.comments_count,
+        p.views_count,
+        p.created_at,
+        u.username as author_username,
+        u.avatar as author_avatar,
+        c.name as category_name,
+        c.color as category_color
+      FROM posts p
+      LEFT JOIN users u ON p.author_id = u.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      WHERE p.author_id = $1
+      ORDER BY p.created_at DESC
+    `, [userId]);
 
-    const formattedPosts = posts.map(post => ({
-      id: post._id,
-      title: post.title,
-      content: post.content,
-      image_url: post.imageUrl,
-      likes_count: post.likesCount || 0,
-      comments_count: post.commentsCount || 0,
-      views_count: post.viewsCount || 0,
-      created_at: post.createdAt,
+    const formattedPosts = postsResult.rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      content: row.content,
+      image_url: row.image_url,
+      likes_count: row.likes_count || 0,
+      comments_count: row.comments_count || 0,
+      views_count: row.views_count || 0,
+      created_at: row.created_at,
+      author: {
+        username: row.author_username || 'משתמש',
+        avatar: row.author_avatar
+      },
       category: {
-        name: post.category?.name || 'כללי',
-        color: post.category?.color || '#6366F1'
+        name: row.category_name || 'כללי',
+        color: row.category_color || '#6366F1'
       }
     }));
     
     return NextResponse.json({ 
       posts: formattedPosts,
       user: {
-        id: user._id.toString(),
+        id: user.id,
         username: user.username,
-        avatar: user.avatar
+        email: user.email,
+        avatar: user.avatar,
+        role: user.role
       },
       count: formattedPosts.length
     });
@@ -57,7 +102,7 @@ export async function GET(
   } catch (error: any) {
     console.error('Error fetching user posts:', error);
     return NextResponse.json(
-      { error: 'שגיאה בטעינת פוסטים של המשתמש' },
+      { error: 'שגיאה בטעינת פוסטים של המשתמש: ' + error.message },
       { status: 500 }
     );
   }

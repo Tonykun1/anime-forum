@@ -1,4 +1,4 @@
-// src/app/page.tsx - עם import של הטיפוסים
+// src/app/page.tsx - תוקן עם import של הטיפוסים הנכונים
 'use client';
 
 import React, { useState } from 'react';
@@ -11,7 +11,25 @@ import CreatePostModal from './Components/CreatePostModal';
 import UserProfilePage from './Components/UserProfilePage';
 import UserSettingsPage from './Components/UserSettingsPage';
 import { useForumPosts } from './hooks/useForumPosts';
-import { ForumPostData } from './types/ForumPost';
+
+// טיפוסים
+interface ForumPostData {
+  id: string | number;
+  title: string;
+  content: string;
+  author: {
+    username: string;
+  };
+  likes_count: number;
+  comments_count: number;
+  views_count: number;
+  created_at: string;
+  image_url?: string;
+  category: {
+    name: string;
+    color: string;
+  };
+}
 
 interface Anime {
   id: number;
@@ -24,6 +42,15 @@ interface Anime {
   genre: string;
   type: 'series' | 'movie';
   isNew?: boolean;
+}
+
+interface ThemeClasses {
+  bg: string;
+  cardBg: string;
+  text: string;
+  textSecondary: string;
+  border: string;
+  hover: string;
 }
 
 const AnimeForum: React.FC = () => {
@@ -192,7 +219,7 @@ const AnimeForum: React.FC = () => {
     }
   ];
 
-  const themeClasses = {
+  const themeClasses: ThemeClasses = {
     bg: isDark ? 'bg-gray-900' : 'bg-white',
     cardBg: isDark ? 'bg-gray-800' : 'bg-white',
     text: isDark ? 'text-white' : 'text-gray-900',
@@ -294,7 +321,6 @@ const AnimeForum: React.FC = () => {
             <div className="mb-8">
               <div className="flex justify-between items-center mb-6">
                 <h2 className={`text-2xl font-bold ${themeClasses.text}`}>דיונים חמים</h2>
-
               </div>
 
               {postsLoading ? (

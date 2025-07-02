@@ -1,150 +1,57 @@
-// lib/db/seed.ts - Seed database with users and data
-import { connectDB } from './connection';
-import { User } from './models/User';
-import { Category } from './models/Category';
-import { Post } from './models/Post';
+// src/lib/db/seed.ts - Updated seed data with authentication
+export const seedCategories = `
+  INSERT INTO categories (name, color) VALUES
+  ('דיונים', '#3B82F6'),
+  ('ביקורות', '#10B981'),
+  ('המלצות', '#F59E0B'),
+  ('שאלות', '#8B5CF6'),
+  ('חדשות', '#EF4444'),
+  ('מימים', '#EC4899')
+  ON CONFLICT (name) DO NOTHING;
+`;
 
-export async function seedDatabase() {
-  try {
-    await connectDB();
-    console.log('Connected to MongoDB for seeding...');
+// Note: For demo purposes only - in production, passwords should be properly hashed
+// This creates a default user with a hashed password for "123456"
+export const seedUsers = `
+  INSERT INTO users (username, email, password_hash, role) VALUES
+  ('משתמש_ברירת_מחדל', 'demo@example.com', '$2a$10$LQ2rLwGIyWlgXBfUyPwKguUAjl8E6yIn9G7jdLKUqByK.2vYZxOHa', 'user')
+  ON CONFLICT (email) DO NOTHING;
+`;
 
-    // Clear existing data (optional - remove in production)
-    // await User.deleteMany({});
-    // await Category.deleteMany({});
-    // await Post.deleteMany({});
+export const seedPosts = `
+  INSERT INTO posts (title, content, author_id, category_id, likes_count, comments_count, views_count) VALUES
+  (
+    'ברוכים הבאים לפורום האנימה!',
+    'זהו הפוסט הראשון בפורום שלנו. כאן תוכלו לדון, לשתף ביקורות ולקבל המלצות על אנימות. אנו מקווים שתיהנו כאן ותמצאו תוכן מעניין וקהילה חמה.',
+    1,
+    1,
+    5,
+    3,
+    120
+  ),
+  (
+    'איך לכתוב ביקורת איכותית?',
+    'כמה טיפים לכתיבת ביקורות טובות: 1. היו ספציפיים ולא כלליים 2. הימנעו מספוילרים 3. דברו על הכוחות והחולשות 4. תנו דירוג הוגן. מה הטיפים שלכם?',
+    1,
+    2,
+    12,
+    8,
+    89
+  ),
+  (
+    'המלצות לאנימות עם עלילה מורכבת',
+    'אני מחפש אנימות עם עלילה מורכבת ועמוקה. משהו שיגרום לי לחשוב. כבר צפיתי ב-Death Note, Steins;Gate ו-Monster. יש לכם המלצות נוספות?',
+    1,
+    3,
+    18,
+    15,
+    234
+  )
+  ON CONFLICT DO NOTHING;
+`;
 
-    // Create users
-    const usersData = [
-      {
-        username: 'AnimeOtaku',
-        email: 'otaku@example.com',
-        password: '123456',
-        avatar: 'https://via.placeholder.com/100x100/3B82F6/FFFFFF?text=AO',
-        coverImage: 'https://via.placeholder.com/800x200/1E40AF/FFFFFF?text=Profile+Cover',
-        bio: 'חובב אנימה ומנגה מזה 10 שנים. אוהב במיוחד שונן ואקשן!',
-        role: 'user',
-        postsCount: 5,
-        likesCount: 234
-      },
-      {
-        username: 'ActionFan',
-        email: 'action@example.com',
-        password: '123456',
-        avatar: 'https://via.placeholder.com/100x100/EF4444/FFFFFF?text=AF',
-        coverImage: 'https://via.placeholder.com/800x200/DC2626/FFFFFF?text=Action+Fan+Cover',
-        bio: 'כל מה שקשור לקרבות ואקשן - אני כאן!',
-        role: 'user',
-        postsCount: 8,
-        likesCount: 456
-      },
-      {
-        username: 'TonyKun',
-        email: 'tonykun@example.com',
-        password: '123456',
-        avatar: 'https://via.placeholder.com/100x100/10B981/FFFFFF?text=TK',
-        coverImage: 'https://via.placeholder.com/800x200/059669/FFFFFF?text=Tony+Cover',
-        bio: 'מפתח ואוהב אנימה! תמיד מחפש חדש.',
-        role: 'admin',
-        postsCount: 12,
-        likesCount: 89
-      }
-    ];
-
-    // Create users if they don't exist
-    const createdUsers = [];
-    for (const userData of usersData) {
-      let user = await User.findOne({ email: userData.email });
-      if (!user) {
-        user = await User.create(userData);
-        console.log(`Created user: ${user.username}`);
-      } else {
-        console.log(`User already exists: ${user.username}`);
-      }
-      createdUsers.push(user);
-    }
-
-    // Create categories
-    const categoriesData = [
-      { name: 'דיונים', color: '#3B82F6' },
-      { name: 'ביקורות', color: '#EF4444' },
-      { name: 'המלצות', color: '#10B981' },
-      { name: 'שאלות', color: '#F59E0B' },
-      { name: 'חדשות', color: '#8B5CF6' },
-      { name: 'מימים', color: '#EC4899' }
-    ];
-
-    const createdCategories = [];
-    for (const categoryData of categoriesData) {
-      let category = await Category.findOne({ name: categoryData.name });
-      if (!category) {
-        category = await Category.create(categoryData);
-        console.log(`Created category: ${category.name}`);
-      } else {
-        console.log(`Category already exists: ${category.name}`);
-      }
-      createdCategories.push(category);
-    }
-
-    // Create sample posts
-    const postsData = [
-      {
-        title: 'איזה אנימה הכי מומלץ לצפייה השנה?',
-        content: 'אני מחפש המלצות לאנימות חדשות וטובות לצפייה. מה אתם הכי ממליצים השנה?',
-        imageUrl: 'https://via.placeholder.com/800x400/3B82F6/FFFFFF?text=Anime+Recommendations',
-        author: createdUsers[0]._id,
-        category: createdCategories[2]._id,
-        likesCount: 15,
-        commentsCount: 8,
-        viewsCount: 120
-      },
-      {
-        title: 'ביקורת: Demon Slayer העונה החדשה',
-        content: 'העונה החדשה של Demon Slayer פשוט מדהימה! האנימציה עלתה עוד רמה והעלילה מרתקת יותר מתמיד.',
-        imageUrl: 'https://via.placeholder.com/800x400/EF4444/FFFFFF?text=Demon+Slayer+Review',
-        author: createdUsers[1]._id,
-        category: createdCategories[1]._id,
-        likesCount: 23,
-        commentsCount: 12,
-        viewsCount: 95
-      },
-      {
-        title: 'שאלה טכנית על הפרויקט',
-        content: 'אני עובד על פרויקט אנימה ויש לי כמה שאלות טכניות. מישהו יכול לעזור?',
-        imageUrl: 'https://via.placeholder.com/800x400/10B981/FFFFFF?text=Tech+Question',
-        author: createdUsers[2]._id,
-        category: createdCategories[3]._id,
-        likesCount: 7,
-        commentsCount: 5,
-        viewsCount: 67
-      }
-    ];
-
-    for (const postData of postsData) {
-      const existingPost = await Post.findOne({ title: postData.title });
-      if (!existingPost) {
-        const post = await Post.create(postData);
-        console.log(`Created post: ${post.title}`);
-      } else {
-        console.log(`Post already exists: ${existingPost.title}`);
-      }
-    }
-
-    return {
-      success: true,
-      message: 'Database seeded successfully!',
-      data: {
-        users: createdUsers.length,
-        categories: createdCategories.length,
-        posts: postsData.length
-      }
-    };
-
-  } catch (error: any) {
-    console.error('Seeding error:', error);
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
+export const allSeedData = [
+  seedCategories,
+  seedUsers,
+  seedPosts
+];

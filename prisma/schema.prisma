@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,50 +10,54 @@ datasource db {
 
 model User {
   id        Int      @id @default(autoincrement())
-  email     String   @unique
-  username  String   @unique
-  password  String
-  bio       String?
-  avatar    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  posts     Post[]
-  comments  Comment[]
-  likes     Like[]
+  username  String   @db.VarChar(50)
+  email     String   @unique @db.VarChar(255)
+  avatar    String?  @db.VarChar(500)
+  role      Role     @default(USER)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  posts Post[]
+
+  @@map("users")
+}
+
+model Category {
+  id    Int    @id @default(autoincrement())
+  name  String @unique @db.VarChar(50)
+  color String @default("#6366F1") @db.VarChar(7)
+
+  // Relations
+  posts Post[]
+
+  @@map("categories")
 }
 
 model Post {
-  id        Int      @id @default(autoincrement())
-  title     String
-  content   String
-  authorId  Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  author   User      @relation(fields: [authorId], references: [id])
-  comments Comment[]
-  likes    Like[]
+  id            Int      @id @default(autoincrement())
+  title         String   @db.VarChar(255)
+  content       String   @db.Text
+  imageUrl      String?  @map("image_url") @db.VarChar(500)
+  likesCount    Int      @default(0) @map("likes_count")
+  commentsCount Int      @default(0) @map("comments_count")
+  viewsCount    Int      @default(0) @map("views_count")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Foreign Keys
+  authorId   Int @map("author_id")
+  categoryId Int @map("category_id")
+
+  // Relations
+  author   User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("posts")
 }
 
-model Comment {
-  id        Int      @id @default(autoincrement())
-  content   String
-  authorId  Int
-  postId    Int
-  createdAt DateTime @default(now())
-  
-  author User @relation(fields: [authorId], references: [id])
-  post   Post @relation(fields: [postId], references: [id])
-}
-
-model Like {
-  id     Int @id @default(autoincrement())
-  userId Int
-  postId Int
-  
-  user User @relation(fields: [userId], references: [id])
-  post Post @relation(fields: [postId], references: [id])
-  
-  @@unique([userId, postId])
+enum Role {
+  USER
+  EDITOR
+  ADMIN
 }

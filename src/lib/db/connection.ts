@@ -1,46 +1,59 @@
-// src/lib/db/connection.ts - חיבור פשוט ללא import של models
-import mongoose from 'mongoose';
+// src/lib/db/connection.ts
+import { Pool } from 'pg';
 
-const MONGODB_URI = process.env.MONGODB_URI;
+const pool = new Pool({
+  user: process.env.DB_USER || 'postgres',
+  host: process.env.DB_HOST || 'localhost',
+  database: process.env.DB_NAME || 'anime_forum',
+  password: process.env.DB_PASSWORD || '',
+  port: parseInt(process.env.DB_PORT || '5432'),
+  // אפשרויות נוספות:
+  max: 20, // מקסימום חיבורים
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
 
-if (!MONGODB_URI) {
-  throw new Error('אנא הגדר את משתנה הסביבה MONGODB_URI בקובץ .env.local');
-}
+// פונקציה לבדיקת חיבור
+pool.on('connect', () => {
+  console.log('✅ Connected to PostgreSQL database');
+});
 
-// הוספת טיפוס global
-declare global {
-  var mongoose: any;
-}
+pool.on('error', (err) => {
+  console.error('❌ Unexpected error on idle client', err);
+  process.exit(-1);
+});
 
-let cached = global.mongoose;
+export const db = {
+  async query(text: string, params?: any[]) {
+    const client = await pool.connect();
+    try {
+      const start = Date.now();
+      const result = await client.query(text, params);
+      const duration = Date.now() - start;
+      console.log('🔍 Executed query', { text, duration, rows: result.rowCount });
+      return result;
+    } finally {
+      client.release();
+    }
+  },
 
-if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
-}
+  async getClient() {
+    return await pool.connect();
+  },
 
-export async function connectDB() {
-  if (cached.conn) {
-    return cached.conn;
+  async end() {
+    return await pool.end();
   }
+};
 
-  if (!cached.promise) {
-    const opts = {
-      bufferCommands: false,
-    };
-
-    cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongoose: any) => {
-      console.log('✅ MongoDB connected successfully');
-      return mongoose;
-    });
-  }
-
+// פונקציה לבדיקת חיבור
+export async function testConnection() {
   try {
-    cached.conn = await cached.promise;
-  } catch (e) {
-    cached.promise = null;
-    console.error('❌ MongoDB connection failed:', e);
-    throw e;
+    const result = await db.query('SELECT NOW() as current_time');
+    console.log('🎉 Database connection successful!', result.rows[0]);
+    return true;
+  } catch (error) {
+    console.error('💥 Database connection failed:', error);
+    return false;
   }
-
-  return cached.conn;
 }

@@ -1,42 +1,40 @@
-// lib/auth.ts - Real authentication with MongoDB
+// lib/auth.ts - Updated with PostgreSQL user registration
 import { NextRequest } from 'next/server';
+import { db } from './db/connection';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { connectDB } from '@/lib/db/connection';
-import { User, IUser } from '@/lib/db/models/User';
 
 export interface SessionUser {
-  id: string;
+  id: number;
   username: string;
   email: string;
   role: string;
   avatar?: string;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
-
 // Verify JWT token
 export async function verifyToken(request: NextRequest): Promise<SessionUser | null> {
   try {
     const token = request.cookies.get('auth-token')?.value;
+    if (!token) return null;
     
-    if (!token) {
-      return null;
-    }
-
+    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     
-    await connectDB();
-    const user = await User.findById(decoded.userId).select('-password');
+    // Fetch user from PostgreSQL
+    const result = await db.query(
+      'SELECT id, username, email, avatar FROM users WHERE id = $1',
+      [decoded.id]
+    );
     
-    if (!user) {
-      return null;
-    }
-
+    if (result.rows.length === 0) return null;
+    
+    const user = result.rows[0];
     return {
-      id: user._id.toString(),
+      id: user.id,
       username: user.username,
       email: user.email,
-      role: user.role,
+      role: user.role || 'user',
       avatar: user.avatar
     };
   } catch (error) {
@@ -45,7 +43,7 @@ export async function verifyToken(request: NextRequest): Promise<SessionUser | n
   }
 }
 
-// Register new user
+// Register new user in PostgreSQL
 export async function registerUser(
   username: string,
   email: string,
@@ -53,47 +51,59 @@ export async function registerUser(
   avatar?: string
 ): Promise<{ success: boolean; user?: SessionUser; error?: string }> {
   try {
-    await connectDB();
+    // Validation
+    if (!username || username.length < 2) {
+      return { success: false, error: 'שם משתמש חייב להכיל לפחות 2 תווים' };
+    }
+    
+    if (!email || !email.includes('@')) {
+      return { success: false, error: 'כתובת אימייל לא חוקית' };
+    }
+    
+    if (!password || password.length < 6) {
+      return { success: false, error: 'סיסמה חייבת להכיל לפחות 6 תווים' };
+    }
     
     // Check if user already exists
-    const existingUser = await User.findOne({ 
-      $or: [{ email }, { username }] 
-    });
+    const existingUser = await db.query(
+      'SELECT id FROM users WHERE email = $1 OR username = $2',
+      [email.toLowerCase(), username]
+    );
     
-    if (existingUser) {
-      return {
-        success: false,
-        error: existingUser.email === email ? 'האימייל כבר רשום' : 'שם המשתמש כבר תפוס'
-      };
+    if (existingUser.rows.length > 0) {
+      return { success: false, error: 'משתמש עם האימייל או שם המשתמש כבר קיים' };
     }
-
-    // Create new user
-    const newUser = await User.create({
-      username,
-      email,
-      password,
-      avatar: avatar || `https://via.placeholder.com/100x100/6366F1/FFFFFF?text=${username.charAt(0).toUpperCase()}`,
-      coverImage: "https://via.placeholder.com/800x200/6366F1/FFFFFF?text=Welcome+Cover",
-      bio: "חבר חדש בקהילה!"
-    });
-
-    const userWithoutPassword = {
-      id: newUser._id.toString(),
-      username: newUser.username,
-      email: newUser.email,
-      role: newUser.role,
-      avatar: newUser.avatar
-    };
-
+    
+    // Hash password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    
+    // Insert new user into PostgreSQL
+    const insertResult = await db.query(
+      `INSERT INTO users (username, email, password_hash, avatar, role, created_at) 
+       VALUES ($1, $2, $3, $4, $5, NOW()) 
+       RETURNING id, username, email, avatar, role, created_at`,
+      [username.trim(), email.toLowerCase().trim(), hashedPassword, avatar || null, 'user']
+    );
+    
+    const newUser = insertResult.rows[0];
+    
     return {
       success: true,
-      user: userWithoutPassword
+      user: {
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email,
+        role: newUser.role,
+        avatar: newUser.avatar
+      }
     };
+    
   } catch (error: any) {
     console.error('Registration error:', error);
-    return {
-      success: false,
-      error: 'שגיאה ברישום המשתמש'
+    return { 
+      success: false, 
+      error: 'שגיאה ביצירת המשתמש: ' + error.message 
     };
   }
 }
@@ -101,63 +111,68 @@ export async function registerUser(
 // Login user
 export async function loginUser(
   email: string,
-  password: string,
-  ipAddress?: string
+  password: string
 ): Promise<{ success: boolean; user?: SessionUser; token?: string; error?: string }> {
   try {
-    await connectDB();
+    // Find user in PostgreSQL
+    const result = await db.query(
+      'SELECT id, username, email, password_hash, avatar, role FROM users WHERE email = $1',
+      [email.toLowerCase()]
+    );
     
-    // Find user by email
-    const user = await User.findOne({ email });
-    
-    if (!user) {
-      return {
-        success: false,
-        error: 'אימייל או סיסמה שגויים'
-      };
+    if (result.rows.length === 0) {
+      return { success: false, error: 'אימייל או סיסמה שגויים' };
     }
-
-    // Check password
-    const isPasswordValid = await user.comparePassword(password);
     
+    const user = result.rows[0];
+    
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
-      return {
-        success: false,
-        error: 'אימייל או סיסמה שגויים'
-      };
+      return { success: false, error: 'אימייל או סיסמה שגויים' };
     }
-
+    
     // Generate JWT token
     const token = generateToken({
-      userId: user._id.toString(),
-      username: user.username,
-      email: user.email,
-      role: user.role
-    });
-
-    const userWithoutPassword = {
-      id: user._id.toString(),
+      id: user.id,
       username: user.username,
       email: user.email,
       role: user.role,
       avatar: user.avatar
-    };
-
+    });
+    
     return {
       success: true,
-      user: userWithoutPassword,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        avatar: user.avatar
+      },
       token
     };
+    
   } catch (error: any) {
     console.error('Login error:', error);
-    return {
-      success: false,
-      error: 'שגיאה בהתחברות'
+    return { 
+      success: false, 
+      error: 'שגיאה בהתחברות: ' + error.message 
     };
   }
 }
 
 // Generate JWT token
-export function generateToken(payload: any): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+export function generateToken(user: any): string {
+  const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+  return jwt.sign(
+    { 
+      id: user.id, 
+      username: user.username, 
+      email: user.email,
+      role: user.role 
+    },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
 }
