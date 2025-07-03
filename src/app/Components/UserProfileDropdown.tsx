@@ -1,8 +1,8 @@
-// src/app/Components/UserProfileDropdown.tsx - עם פונקציית פוסט חדש
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { User, Settings, LogOut, ChevronDown, Plus } from 'lucide-react';
+// src/app/Components/UserProfileDropdown.tsx
+import React, { useState, useRef, useEffect } from 'react';
+import { LogOut, Settings, User as UserIcon, Calendar, Heart, MessageSquare, Plus } from 'lucide-react';
 import { useAuth } from '../Context/AuthContext';
+import { useCreatePost } from '.././Context/CreatePostContext';
 
 interface UserProfileDropdownProps {
   themeClasses: {
@@ -13,109 +13,151 @@ interface UserProfileDropdownProps {
     border: string;
     hover: string;
   };
-  onCreatePost?: () => void; // פרופ אופציונלי לפתיחת מודאל פוסט
+  onProfileClick: () => void;
+  onSettingsClick: () => void;
 }
 
 const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ 
   themeClasses, 
-  onCreatePost 
+  onProfileClick,
+  onSettingsClick 
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuth();
-  const router = useRouter();
+  const { openCreatePost } = useCreatePost(); // שימוש ב-Context העולמי
 
-  if (!user) return null;
+  // סגירת התפריט בלחיצה מחוץ לו
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
 
-  const handleProfileClick = () => {
-    router.push(`/${user.username}`);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const handleLogout = () => {
+    logout();
+    setIsOpen(false);
+  };
+
+  const handleCreatePost = () => {
+    openCreatePost(); // פתיחת הפופאפ העולמי
     setIsOpen(false);
   };
 
   const handleSettingsClick = () => {
-    router.push('/settings');
+    onSettingsClick();
     setIsOpen(false);
   };
 
-  const handleCreatePostClick = () => {
-    if (onCreatePost) {
-      onCreatePost(); // קורא לפונקציה שפותחת את המודאל
-    } else {
-      // אם אין פונקציה, נווט לעמוד הבית עם פרמטר
-      router.push('/?create=true');
-    }
+  const handleProfileClick = () => {
+    onProfileClick();
     setIsOpen(false);
   };
 
-  const handleLogout = async () => {
-    await logout();
-    setIsOpen(false);
-    router.push('/');
-  };
+  if (!user) return null;
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
+      {/* תמונת פרופיל וכפתור */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center space-x-3 ${themeClasses.hover} px-3 py-2 rounded-md transition-colors`}
+        className={`flex items-center space-x-2 p-2 rounded-lg ${themeClasses.hover} transition-colors`}
       >
-        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-bold">
-          {user.avatar ? (
-            <img 
-              src={user.avatar} 
-              alt={user.username}
-              className="w-full h-full rounded-full object-cover"
-            />
-          ) : (
-            user.username.substring(0, 2).toUpperCase()
-          )}
-        </div>
-        <span className={`font-medium ${themeClasses.text} hidden md:block`}>
+        <img
+          src={user.avatar || `https://via.placeholder.com/32x32/6366F1/FFFFFF?text=${user.username?.charAt(0)?.toUpperCase() || 'U'}`}
+          alt={user.username}
+          className="w-8 h-8 rounded-full border-2 border-blue-500 object-cover"
+        />
+        <span className={`hidden sm:block text-sm font-medium ${themeClasses.text}`}>
           {user.username}
         </span>
-        <ChevronDown className={`w-4 h-4 ${themeClasses.text} transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
+      {/* תפריט נפתח */}
       {isOpen && (
-        <>
-          <div 
-            className="fixed inset-0 z-10" 
-            onClick={() => setIsOpen(false)}
-          />
-          <div className={`absolute right-0 mt-2 w-48 ${themeClasses.cardBg} ${themeClasses.border} border rounded-md shadow-lg z-20`}>
-            <div className="py-1">
-              <button
-                onClick={handleCreatePostClick}
-                className={`w-full text-right px-4 py-2 text-sm ${themeClasses.text} ${themeClasses.hover} flex items-center space-x-2`}
-              >
-                <Plus className="w-4 h-4" />
-                <span>צור פוסט חדש</span>
-              </button>
-              <hr className={`my-1 ${themeClasses.border}`} />
-              <button
-                onClick={handleProfileClick}
-                className={`w-full text-right px-4 py-2 text-sm ${themeClasses.text} ${themeClasses.hover} flex items-center space-x-2`}
-              >
-                <User className="w-4 h-4" />
-                <span>הפרופיל שלי</span>
-              </button>
-              <button
-                onClick={handleSettingsClick}
-                className={`w-full text-right px-4 py-2 text-sm ${themeClasses.text} ${themeClasses.hover} flex items-center space-x-2`}
-              >
-                <Settings className="w-4 h-4" />
-                <span>הגדרות</span>
-              </button>
-              <hr className={`my-1 ${themeClasses.border}`} />
-              <button
-                onClick={handleLogout}
-                className={`w-full text-right px-4 py-2 text-sm text-red-400 hover:bg-red-500 hover:text-white flex items-center space-x-2`}
-              >
-                <LogOut className="w-4 h-4" />
-                <span>התנתק</span>
-              </button>
+        <div className={`absolute left-0 mt-2 w-80 ${themeClasses.cardBg} ${themeClasses.border} border rounded-lg shadow-lg z-50`}>
+          {/* פרטי המשתמש */}
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center space-x-3">
+              <img
+                src={user.avatar || `https://via.placeholder.com/48x48/6366F1/FFFFFF?text=${user.username?.charAt(0)?.toUpperCase() || 'U'}`}
+                alt={user.username}
+                className="w-12 h-12 rounded-full border-2 border-blue-500 object-cover"
+              />
+              <div>
+                <h3 className={`font-semibold ${themeClasses.text}`}>{user.username}</h3>
+                <p className={`text-sm ${themeClasses.textSecondary}`}>{user.email}</p>
+              </div>
+            </div>
+
+            {/* סטטיסטיקות */}
+            <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-4 text-sm">
+                <div className="flex items-center space-x-1">
+                  <Calendar className="w-4 h-4 text-blue-500" />
+                  <span className={themeClasses.textSecondary}>הצטרף ב-{user.joinDate}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex items-center space-x-6 text-sm">
+                <div className="flex items-center space-x-1">
+                  <MessageSquare className="w-4 h-4 text-green-500" />
+                  <span className={themeClasses.textSecondary}>{user.postsCount} פוסטים</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <Heart className="w-4 h-4 text-red-500" />
+                  <span className={themeClasses.textSecondary}>{user.likesCount} לייקים</span>
+                </div>
+              </div>
             </div>
           </div>
-        </>
+
+          {/* פעולות */}
+          <div className="py-2">
+            <button
+              onClick={handleCreatePost}
+              className={`w-full flex items-center space-x-3 px-4 py-2 text-sm ${themeClasses.text} ${themeClasses.hover} transition-colors`}
+            >
+              <Plus className="w-4 h-4" />
+              <span>פוסט חדש</span>
+            </button>
+
+            <button
+              onClick={handleProfileClick}
+              className={`w-full flex items-center space-x-3 px-4 py-2 text-sm ${themeClasses.text} ${themeClasses.hover} transition-colors`}
+            >
+              <UserIcon className="w-4 h-4" />
+              <span>פרופיל שלי</span>
+            </button>
+            
+            <button
+              onClick={handleSettingsClick}
+              className={`w-full flex items-center space-x-3 px-4 py-2 text-sm ${themeClasses.text} ${themeClasses.hover} transition-colors`}
+            >
+              <Settings className="w-4 h-4" />
+              <span>הגדרות</span>
+            </button>
+            
+            <hr className="my-2 border-gray-200 dark:border-gray-700" />
+            
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center space-x-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>התנתק</span>
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,57 +1,16 @@
-// src/app/page.tsx - תוקן עם import של הטיפוסים הנכונים
+// src/app/page.tsx
 'use client';
 
 import React, { useState } from 'react';
-import { AuthProvider } from './Context/AuthContext';
 import NavBar from './Components/NavBar';
 import AnimeCard from './Components/AnimeCard';
 import AnimeCarousel from './Components/AnimeCarousel';
 import ForumPost from './Components/ForumPost';
-import CreatePostModal from './Components/CreatePostModal';
 import UserProfilePage from './Components/UserProfilePage';
 import UserSettingsPage from './Components/UserSettingsPage';
 import { useForumPosts } from './hooks/useForumPosts';
-
-// טיפוסים
-interface ForumPostData {
-  id: string | number;
-  title: string;
-  content: string;
-  author: {
-    username: string;
-  };
-  likes_count: number;
-  comments_count: number;
-  views_count: number;
-  created_at: string;
-  image_url?: string;
-  category: {
-    name: string;
-    color: string;
-  };
-}
-
-interface Anime {
-  id: number;
-  title: string;
-  image: string;
-  rating: number;
-  episodes?: number;
-  duration?: string;
-  status: 'ongoing' | 'completed';
-  genre: string;
-  type: 'series' | 'movie';
-  isNew?: boolean;
-}
-
-interface ThemeClasses {
-  bg: string;
-  cardBg: string;
-  text: string;
-  textSecondary: string;
-  border: string;
-  hover: string;
-}
+import { useCreatePost } from './Context/CreatePostContext';
+import { ForumPostData, Anime } from './types';
 
 const AnimeForum: React.FC = () => {
   const [isDark, setIsDark] = useState<boolean>(true);
@@ -59,9 +18,10 @@ const AnimeForum: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [currentSlide, setCurrentSlide] = useState<number>(0);
   const [expandedPosts, setExpandedPosts] = useState<{ [key: string]: boolean }>({});
-  const [showCreatePost, setShowCreatePost] = useState<boolean>(false);
   const [showProfile, setShowProfile] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
+
+  const { openCreatePost } = useCreatePost(); // שימוש ב-Context העולמי
 
   // Use the custom hook for forum posts
   const { 
@@ -71,163 +31,112 @@ const AnimeForum: React.FC = () => {
     refetch: refetchPosts 
   } = useForumPosts();
 
-  // Anime data for new season carousel
+  // Anime data
   const newSeasonAnime: Anime[] = [
     {
-      id: 101,
-      title: "Attack on Titan Final Season",
-      image: "https://via.placeholder.com/300x400/8B5CF6/FFFFFF?text=Attack+on+Titan",
-      rating: 9.8,
-      episodes: 75,
+      id: 1,
+      title: "Attack on Titan: Final Season",
+      image: "https://via.placeholder.com/300x400/3B82F6/FFFFFF?text=Attack+on+Titan",
+      rating: 9.0,
+      episodes: 16,
       status: 'completed',
-      genre: "אקשן, דרמה",
+      genre: "אקשן",
       type: 'series',
       isNew: true
     },
     {
-      id: 102,
-      title: "Demon Slayer: Kimetsu no Yaiba",
+      id: 2,
+      title: "Demon Slayer: Hashira Training Arc",
       image: "https://via.placeholder.com/300x400/EF4444/FFFFFF?text=Demon+Slayer",
-      rating: 9.5,
-      episodes: 44,
+      rating: 8.8,
+      episodes: 11,
       status: 'ongoing',
-      genre: "אקשן, על-טבעי",
+      genre: "אקשן",
       type: 'series',
       isNew: true
     },
     {
-      id: 103,
-      title: "Jujutsu Kaisen Season 2",
-      image: "https://via.placeholder.com/300x400/F59E0B/FFFFFF?text=Jujutsu+Kaisen",
-      rating: 9.2,
+      id: 3,
+      title: "Jujutsu Kaisen Season 3",
+      image: "https://via.placeholder.com/300x400/8B5CF6/FFFFFF?text=Jujutsu+Kaisen",
+      rating: 8.9,
       episodes: 24,
       status: 'ongoing',
-      genre: "אקשן, על-טבעי",
+      genre: "אקשן",
       type: 'series',
       isNew: true
     },
     {
-      id: 104,
-      title: "One Piece: Gear 5",
-      image: "https://via.placeholder.com/300x400/10B981/FFFFFF?text=One+Piece",
-      rating: 9.0,
-      episodes: 1000,
-      status: 'ongoing',
-      genre: "הרפתקאות, אקשן",
-      type: 'series',
-      isNew: true
-    },
-    {
-      id: 105,
-      title: "Chainsaw Man",
-      image: "https://via.placeholder.com/300x400/EC4899/FFFFFF?text=Chainsaw+Man",
-      rating: 8.8,
-      episodes: 12,
-      status: 'completed',
-      genre: "אקשן, אימה",
-      type: 'series',
-      isNew: true
-    },
-    {
-      id: 106,
+      id: 4,
       title: "My Hero Academia Season 7",
-      image: "https://via.placeholder.com/300x400/3B82F6/FFFFFF?text=My+Hero+Academia",
-      rating: 8.9,
+      image: "https://via.placeholder.com/300x400/10B981/FFFFFF?text=My+Hero+Academia",
+      rating: 8.5,
       episodes: 25,
       status: 'ongoing',
-      genre: "אקשן, סופר-הירו",
-      type: 'series',
-      isNew: true
-    },
-    {
-      id: 107,
-      title: "Tokyo Revengers Season 3",
-      image: "https://via.placeholder.com/300x400/8B5CF6/FFFFFF?text=Tokyo+Revengers",
-      rating: 8.5,
-      episodes: 13,
-      status: 'completed',
-      genre: "דרמה, אקשן",
-      type: 'series',
-      isNew: true
-    },
-    {
-      id: 108,
-      title: "Dr. Stone: New World",
-      image: "https://via.placeholder.com/300x400/059669/FFFFFF?text=Dr+Stone",
-      rating: 8.7,
-      episodes: 22,
-      status: 'completed',
-      genre: "מדע, הרפתקאות",
-      type: 'series',
-      isNew: true
-    },
-    {
-      id: 109,
-      title: "Bleach: TYBW",
-      image: "https://via.placeholder.com/300x400/DC2626/FFFFFF?text=Bleach",
-      rating: 9.1,
-      episodes: 26,
-      status: 'ongoing',
-      genre: "אקשן, על-טבעי",
-      type: 'series',
-      isNew: true
-    },
-    {
-      id: 110,
-      title: "Mob Psycho 100 III",
-      image: "https://via.placeholder.com/300x400/7C3AED/FFFFFF?text=Mob+Psycho",
-      rating: 9.3,
-      episodes: 12,
-      status: 'completed',
-      genre: "על-טבעי, קומדיה",
+      genre: "אקשן",
       type: 'series',
       isNew: true
     }
   ];
 
-  // Movie data with unique IDs
-  const moviesList: Anime[] = [
+  const animeList: Anime[] = [
+    ...newSeasonAnime,
     {
-      id: 201,
+      id: 5,
+      title: "One Piece",
+      image: "https://via.placeholder.com/300x400/F59E0B/FFFFFF?text=One+Piece",
+      rating: 9.2,
+      episodes: 1000,
+      status: 'ongoing',
+      genre: "הרפתקאות",
+      type: 'series'
+    },
+    {
+      id: 6,
       title: "Spirited Away",
       image: "https://via.placeholder.com/300x400/10B981/FFFFFF?text=Spirited+Away",
-      rating: 9.9,
+      rating: 9.3,
       duration: "125 דקות",
       status: 'completed',
-      genre: "הרפתקאות, משפחה",
+      genre: "משפחה",
       type: 'movie'
     },
     {
-      id: 202,
-      title: "Your Name",
-      image: "https://via.placeholder.com/300x400/EC4899/FFFFFF?text=Your+Name",
-      rating: 9.8,
-      duration: "106 דקות",
-      status: 'completed',
-      genre: "רומנטיקה, דרמה",
-      type: 'movie'
-    },
-    {
-      id: 203,
+      id: 7,
       title: "Princess Mononoke",
-      image: "https://via.placeholder.com/300x400/059669/FFFFFF?text=Princess+Mononoke",
-      rating: 9.7,
+      image: "https://via.placeholder.com/300x400/8B5CF6/FFFFFF?text=Princess+Mononoke",
+      rating: 9.1,
       duration: "134 דקות",
       status: 'completed',
-      genre: "הרפתקאות, פנטזיה",
+      genre: "הרפתקאות",
       type: 'movie'
+    },
+    {
+      id: 8,
+      title: "Naruto Shippuden",
+      image: "https://via.placeholder.com/300x400/F97316/FFFFFF?text=Naruto",
+      rating: 8.7,
+      episodes: 500,
+      status: 'completed',
+      genre: "אקשן",
+      type: 'series'
     }
   ];
 
-  const themeClasses: ThemeClasses = {
-    bg: isDark ? 'bg-gray-900' : 'bg-white',
+  // Theme classes
+  const themeClasses = {
+    bg: isDark ? 'bg-gray-900' : 'bg-gray-50',
     cardBg: isDark ? 'bg-gray-800' : 'bg-white',
     text: isDark ? 'text-white' : 'text-gray-900',
     textSecondary: isDark ? 'text-gray-300' : 'text-gray-600',
     border: isDark ? 'border-gray-700' : 'border-gray-200',
-    hover: isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
+    hover: isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
   };
 
+  // Event handlers
+  const toggleTheme = () => setIsDark(!isDark);
+  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+  
   const togglePostExpansion = (postId: string) => {
     setExpandedPosts(prev => ({
       ...prev,
@@ -235,96 +144,204 @@ const AnimeForum: React.FC = () => {
     }));
   };
 
-  // Helper functions for carousel
   const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % 2);
+    setCurrentSlide((prev) => (prev + 1) % newSeasonAnime.length);
   };
 
   const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + 2) % 2);
+    setCurrentSlide((prev) => (prev - 1 + newSeasonAnime.length) % newSeasonAnime.length);
   };
 
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setIsMenuOpen(false);
   };
 
-  // הפונקציה שתיקרא כשפוסט נוצר בהצלחה
-  const handlePostCreated = async (newPost: any) => {
-    console.log('🎉 New post created, refreshing list...');
-    // רענן את רשימת הפוסטים מהשרת
-    await refetchPosts();
-    // סגור את חלון יצירת הפוסט
-    setShowCreatePost(false);
+  const handleProfileClick = () => {
+    setShowProfile(true);
+    setShowSettings(false);
   };
 
-  const toggleTheme = () => setIsDark(!isDark);
+  const handleSettingsClick = () => {
+    setShowSettings(true);
+    setShowProfile(false);
+  };
 
-  const renderContent = () => {
-    if (showProfile) {
-      return (
-        <UserProfilePage
-          themeClasses={themeClasses}
-          userPosts={forumPosts}
-          onBack={() => setShowProfile(false)}
-          onCreatePost={() => setShowCreatePost(true)}
-        />
-      );
-    }
+  const handleBackFromProfile = () => {
+    setShowProfile(false);
+  };
 
-    if (showSettings) {
-      return (
-        <UserSettingsPage
-          themeClasses={themeClasses}
-          onBack={() => setShowSettings(false)}
+  const handleBackFromSettings = () => {
+    setShowSettings(false);
+  };
+
+  // Show settings page
+  if (showSettings) {
+    return (
+      <div className={`min-h-screen ${themeClasses.bg} transition-colors duration-300`}>
+        <NavBar 
           isDark={isDark}
           toggleTheme={toggleTheme}
+          activeTab={activeTab}
+          setActiveTab={handleTabChange}
+          isMenuOpen={isMenuOpen}
+          toggleMenu={toggleMenu}
+          onCreatePost={openCreatePost}
+          onProfileClick={handleProfileClick}
+          onSettingsClick={handleSettingsClick}
+          themeClasses={themeClasses}
         />
-      );
-    }
-
-    if (showCreatePost) {
-      return (
-        <div className="max-w-2xl mx-auto">
-          <button
-            onClick={() => setShowCreatePost(false)}
-            className={`mb-6 flex items-center space-x-2 px-4 py-2 rounded-lg ${themeClasses.hover} ${themeClasses.text} transition-colors`}
-          >
-            <span>← חזור</span>
-          </button>
-          <CreatePostModal 
-            onPostCreated={handlePostCreated}
-            className="w-full"
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <UserSettingsPage 
+            themeClasses={themeClasses}
+            onBack={handleBackFromSettings}
+            isDark={isDark}
+            toggleTheme={toggleTheme}
           />
-        </div>
-      );
-    }
+        </main>
+      </div>
+    );
+  }
 
+  // Show profile page
+  if (showProfile) {
+    return (
+      <div className={`min-h-screen ${themeClasses.bg} transition-colors duration-300`}>
+        <NavBar 
+          isDark={isDark}
+          toggleTheme={toggleTheme}
+          activeTab={activeTab}
+          setActiveTab={handleTabChange}
+          isMenuOpen={isMenuOpen}
+          toggleMenu={toggleMenu}
+          onCreatePost={openCreatePost}
+          onProfileClick={handleProfileClick}
+          onSettingsClick={handleSettingsClick}
+          themeClasses={themeClasses}
+        />
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <UserProfilePage 
+            themeClasses={themeClasses}
+            userPosts={forumPosts}
+            onBack={handleBackFromProfile}
+            onCreatePost={openCreatePost}
+          />
+        </main>
+      </div>
+    );
+  }
+
+  // Render content based on active tab
+  const renderContent = () => {
     switch (activeTab) {
-      case 'home':
+      case 'reviews':
+        return (
+          <div className="space-y-8">
+            <h2 className={`text-3xl font-bold ${themeClasses.text} mb-6`}>ביקורות ודירוגים</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4">
+              {animeList.map(anime => (
+                <AnimeCard key={anime.id} anime={anime} themeClasses={themeClasses} />
+              ))}
+            </div>
+          </div>
+        );
+        
+      case 'series':
+        return (
+          <div className="space-y-8">
+            <h2 className={`text-3xl font-bold ${themeClasses.text} mb-6`}>סדרות אנימה</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4">
+              {animeList.filter(anime => anime.type === 'series').map(anime => (
+                <AnimeCard key={anime.id} anime={anime} themeClasses={themeClasses} />
+              ))}
+            </div>
+          </div>
+        );
+        
+      case 'movies':
+        return (
+          <div className="space-y-8">
+            <h2 className={`text-3xl font-bold ${themeClasses.text} mb-6`}>סרטי אנימה</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4">
+              {animeList.filter(anime => anime.type === 'movie').map(anime => (
+                <AnimeCard key={anime.id} anime={anime} themeClasses={themeClasses} />
+              ))}
+            </div>
+          </div>
+        );
+        
       case 'posts':
         return (
-          <div>
-            {/* Hero Section עם קרוסלת אנימה */}
-            <div className="mb-8">
-              <AnimeCarousel 
-                newSeasonAnime={newSeasonAnime}
-                currentSlide={currentSlide}
-                nextSlide={nextSlide}
-                prevSlide={prevSlide}
-                setCurrentSlide={setCurrentSlide}
-                isDark={isDark}
-                themeClasses={themeClasses}
-              />
-            </div>
-
-            {/* פוסטים מהפורום */}
-            <div className="mb-8">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className={`text-2xl font-bold ${themeClasses.text}`}>דיונים חמים</h2>
+          <div className="space-y-8">
+            <h2 className={`text-3xl font-bold ${themeClasses.text} mb-6`}>פוסטים ודיונים</h2>
+            
+            {postsLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4">
+                {[...Array(6)].map((_, index) => (
+                  <div key={`skeleton-${index}`} className={`${themeClasses.cardBg} ${themeClasses.border} border rounded-lg p-4 animate-pulse`}>
+                    <div className="h-32 bg-gray-600 rounded mb-4"></div>
+                    <div className="h-4 bg-gray-600 rounded mb-2"></div>
+                    <div className="h-3 bg-gray-600 rounded w-3/4"></div>
+                  </div>
+                ))}
               </div>
-
+            ) : postsError ? (
+              <div className={`${themeClasses.cardBg} ${themeClasses.border} border rounded-lg p-6 text-center`}>
+                <p className={`${themeClasses.text} text-lg mb-4`}>שגיאה בטעינת הפוסטים</p>
+                <p className={`${themeClasses.textSecondary} mb-4`}>{postsError}</p>
+                <button
+                  onClick={refetchPosts}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  נסה שנית
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4">
+                {forumPosts.map(post => (
+                  <ForumPost 
+                    key={post.id} 
+                    post={post} 
+                    expandedPosts={expandedPosts} 
+                    togglePostExpansion={togglePostExpansion}
+                    themeClasses={themeClasses}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+        
+      case 'watchlist':
+        return (
+          <div className="space-y-8">
+            <h2 className={`text-3xl font-bold ${themeClasses.text} mb-6`}>רשימת הצפייה שלי</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4">
+              {animeList.slice(0, 3).map(anime => (
+                <AnimeCard key={anime.id} anime={anime} themeClasses={themeClasses} />
+              ))}
+            </div>
+          </div>
+        );
+        
+      default:
+        return (
+          <div className="space-y-8">
+            <AnimeCarousel 
+              newSeasonAnime={newSeasonAnime}
+              currentSlide={currentSlide}
+              nextSlide={nextSlide}
+              prevSlide={prevSlide}
+              setCurrentSlide={setCurrentSlide}
+              isDark={isDark}
+              themeClasses={themeClasses}
+            />
+            
+            <section>
+              <h2 className={`text-3xl font-bold ${themeClasses.text} mb-6`}>דיונים ופוסטים</h2>
+              
               {postsLoading ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4">
                   {[...Array(6)].map((_, index) => (
                     <div key={`skeleton-${index}`} className={`${themeClasses.cardBg} ${themeClasses.border} border rounded-lg p-4 animate-pulse`}>
                       <div className="h-32 bg-gray-600 rounded mb-4"></div>
@@ -345,92 +362,42 @@ const AnimeForum: React.FC = () => {
                   </button>
                 </div>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {forumPosts.map((post: ForumPostData) => (
-                    <ForumPost
-                      key={post.id}
-                      post={post}
-                      expandedPosts={expandedPosts}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4">
+                  {forumPosts.map(post => (
+                    <ForumPost 
+                      key={post.id} 
+                      post={post} 
+                      expandedPosts={expandedPosts} 
                       togglePostExpansion={togglePostExpansion}
                       themeClasses={themeClasses}
                     />
                   ))}
                 </div>
               )}
-            </div>
-          </div>
-        );
-
-      case 'series':
-        return (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {newSeasonAnime.map((anime) => (
-              <AnimeCard 
-                key={`series-${anime.id}`}
-                anime={anime} 
-                themeClasses={themeClasses}
-              />
-            ))}
-          </div>
-        );
-
-      case 'movies':
-        return (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {moviesList.map((anime) => (
-              <AnimeCard 
-                key={`movie-${anime.id}`}
-                anime={anime} 
-                themeClasses={themeClasses}
-              />
-            ))}
-          </div>
-        );
-
-      case 'watchlist':
-        return (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {[...newSeasonAnime.slice(0, 3), ...moviesList.slice(0, 2)].map((anime) => (
-              <AnimeCard 
-                key={`watchlist-${anime.id}`}
-                anime={anime} 
-                themeClasses={themeClasses}
-              />
-            ))}
-          </div>
-        );
-
-      default:
-        return (
-          <div className={`${themeClasses.cardBg} ${themeClasses.border} border rounded-lg p-8 text-center`}>
-            <h2 className={`text-2xl font-bold ${themeClasses.text} mb-4`}>עמוד בפיתוח</h2>
-            <p className={`${themeClasses.textSecondary}`}>העמוד הזה עדיין בפיתוח...</p>
+            </section>
           </div>
         );
     }
   };
 
   return (
-    <AuthProvider>
-      <div className={`min-h-screen ${themeClasses.bg} transition-colors duration-200`}>
-        <NavBar 
-          isDark={isDark}
-          toggleTheme={toggleTheme}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          isMenuOpen={isMenuOpen}
-          toggleMenu={toggleMenu}
-          themeClasses={themeClasses}
-          onProfileClick={() => setShowProfile(true)}
-          onSettingsClick={() => setShowSettings(true)}
-          onCreatePost={() => setShowCreatePost(true)}
-        />
-        
-        <main className="container mx-auto px-4 py-8">
-          {renderContent()}
-        </main>
-      </div>
-    </AuthProvider>
+    <div className={`min-h-screen ${themeClasses.bg} transition-colors duration-300`}>
+      <NavBar 
+        isDark={isDark}
+        toggleTheme={toggleTheme}
+        activeTab={activeTab}
+        setActiveTab={handleTabChange}
+        isMenuOpen={isMenuOpen}
+        toggleMenu={toggleMenu}
+        onCreatePost={openCreatePost}
+        onProfileClick={handleProfileClick}
+        onSettingsClick={handleSettingsClick}
+        themeClasses={themeClasses}
+      />
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {renderContent()}
+      </main>
+    </div>
   );
 };
 

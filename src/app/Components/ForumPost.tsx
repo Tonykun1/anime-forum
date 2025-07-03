@@ -1,33 +1,7 @@
-// src/app/Components/ForumPost.tsx - תוקן להתאים לטיפוסים החדשים
+// src/app/Components/ForumPost.tsx
 import React from 'react';
-import { Star, MessageCircle, Clock, Eye } from 'lucide-react';
-
-interface ForumPostData {
-  id: string | number;
-  title: string;
-  content: string;
-  author: {
-    username: string;
-  };
-  likes_count: number;
-  comments_count: number;
-  views_count: number;
-  created_at: string;
-  image_url?: string;
-  category: {
-    name: string;
-    color: string;
-  };
-}
-
-interface ThemeClasses {
-  bg: string;
-  cardBg: string;
-  text: string;
-  textSecondary: string;
-  border: string;
-  hover: string;
-}
+import { Star, MessageCircle, Clock } from 'lucide-react';
+import { ForumPostData, ThemeClasses } from '../types';
 
 interface ForumPostProps {
   post: ForumPostData;
@@ -42,15 +16,21 @@ const ForumPost: React.FC<ForumPostProps> = ({
   togglePostExpansion, 
   themeClasses 
 }) => {
-  const isExpanded = expandedPosts[post.id];
+  const isExpanded = expandedPosts[post.id.toString()];
   const previewContent = post.content.length > 120 ? 
     post.content.substring(0, 120) + '...' : 
     post.content;
 
-  // פורמט התאריך
-  const formatDate = (dateString: string) => {
+  // פורמט התאריך/זמן
+  const formatTime = (timeString: string) => {
+    // אם זה כבר מפורמט (כמו "לפני 2 שעות"), החזר כמו שזה
+    if (timeString.includes('לפני') || timeString.includes('עכשיו')) {
+      return timeString;
+    }
+    
+    // אחרת, נסה לפרמט תאריך
     try {
-      const date = new Date(dateString);
+      const date = new Date(timeString);
       const now = new Date();
       const diffMs = now.getTime() - date.getTime();
       const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -68,7 +48,7 @@ const ForumPost: React.FC<ForumPostProps> = ({
         return date.toLocaleDateString('he-IL');
       }
     } catch {
-      return 'לפני זמן';
+      return timeString; // החזר את הערך המקורי אם יש שגיאה
     }
   };
 
@@ -78,10 +58,10 @@ const ForumPost: React.FC<ForumPostProps> = ({
       onClick={() => togglePostExpansion(post.id.toString())}
     >
       {/* תמונת הפוסט */}
-      {post.image_url && (
+      {post.postImage && (
         <div className="relative">
           <img 
-            src={post.image_url} 
+            src={post.postImage} 
             alt={post.title}
             className="w-full h-32 object-cover"
             onError={(e) => {
@@ -93,11 +73,8 @@ const ForumPost: React.FC<ForumPostProps> = ({
           
           {/* קטגוריה על התמונה */}
           <div className="absolute top-2 right-2">
-            <span 
-              className="px-2 py-1 rounded-full text-xs font-medium text-white"
-              style={{ backgroundColor: post.category.color }}
-            >
-              {post.category.name}
+            <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-500 text-white">
+              {post.category}
             </span>
           </div>
         </div>
@@ -126,17 +103,32 @@ const ForumPost: React.FC<ForumPostProps> = ({
         {/* מידע על הכותב */}
         <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-              <span className="text-white text-xs font-bold">
-                {post.author.username.charAt(0).toUpperCase()}
-              </span>
+            <div className="w-8 h-8 rounded-full overflow-hidden">
+              <img
+                src={post.avatar}
+                alt={post.author}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  // אם התמונה לא נטענת, הצג אות ראשונה
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  const parent = target.parentElement;
+                  if (parent) {
+                    parent.innerHTML = `
+                      <div class="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                        <span class="text-white text-xs font-bold">${post.author.charAt(0).toUpperCase()}</span>
+                      </div>
+                    `;
+                  }
+                }}
+              />
             </div>
             <div>
               <p className={`text-sm font-medium ${themeClasses.text}`}>
-                {post.author.username}
+                {post.author}
               </p>
               <p className={`text-xs ${themeClasses.textSecondary}`}>
-                {formatDate(post.created_at)}
+                {formatTime(post.time)}
               </p>
             </div>
           </div>
@@ -147,27 +139,31 @@ const ForumPost: React.FC<ForumPostProps> = ({
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-1">
               <Star className="w-4 h-4 text-yellow-500" />
-              <span className={themeClasses.textSecondary}>{post.likes_count}</span>
+              <span className={themeClasses.textSecondary}>{post.likes}</span>
             </div>
             
             <div className="flex items-center space-x-1">
               <MessageCircle className="w-4 h-4 text-blue-500" />
-              <span className={themeClasses.textSecondary}>{post.comments_count}</span>
-            </div>
-            
-            <div className="flex items-center space-x-1">
-              <Eye className="w-4 h-4 text-gray-500" />
-              <span className={themeClasses.textSecondary}>{post.views_count}</span>
+              <span className={themeClasses.textSecondary}>{post.replies}</span>
             </div>
           </div>
           
           <div className="flex items-center space-x-1">
             <Clock className="w-3 h-3 text-gray-400" />
             <span className={`text-xs ${themeClasses.textSecondary}`}>
-              {formatDate(post.created_at)}
+              {formatTime(post.time)}
             </span>
           </div>
         </div>
+
+        {/* קטגוריה (אם אין תמונה) */}
+        {!post.postImage && (
+          <div className="mt-2">
+            <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-500 text-white">
+              {post.category}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,36 +1,11 @@
-// src/app/Components/UserProfilePage.tsx - תוקן להתאים לטיפוסים החדשים
+// src/app/Components/UserProfilePage.tsx
 import React, { useState } from 'react';
 import { Calendar, Heart, MessageSquare, Edit3, Save, X, Camera, Star, Clock, Eye } from 'lucide-react';
 import { useAuth } from '../Context/AuthContext';
-
-// טיפוס מתוקן שמתאים לנתונים מה-API
-interface ForumPostData {
-  id: string | number;
-  title: string;
-  content: string;
-  author: {
-    username: string;
-  };
-  likes_count: number;
-  comments_count: number;
-  views_count: number;
-  created_at: string;
-  image_url?: string;
-  category: {
-    name: string;
-    color: string;
-  };
-}
+import { ForumPostData, ThemeClasses } from '../types';
 
 interface UserProfilePageProps {
-  themeClasses: {
-    bg: string;
-    cardBg: string;
-    text: string;
-    textSecondary: string;
-    border: string;
-    hover: string;
-  };
+  themeClasses: ThemeClasses;
   userPosts: ForumPostData[];
   onBack: () => void;
   onCreatePost: () => void;
@@ -68,9 +43,9 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
     setIsEditing(false);
   };
 
-  // פילטר פוסטים של המשתמש הנוכחי (אם יש מידע על המחבר)
+  // פילטר פוסטים של המשתמש הנוכחי
   const currentUserPosts = userPosts.filter(post => 
-    post.author.username === user.username
+    post.author === user.username
   );
 
   // פורמט תאריך
@@ -255,9 +230,9 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {currentUserPosts.map((post) => (
               <div key={post.id} className={`${themeClasses.cardBg} ${themeClasses.border} border rounded-lg overflow-hidden`}>
-                {post.image_url && (
+                {post.postImage && (
                   <img 
-                    src={post.image_url} 
+                    src={post.postImage} 
                     alt={post.title}
                     className="w-full h-32 object-cover"
                   />
@@ -276,35 +251,27 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
                     <div className="flex items-center space-x-4">
                       <div className="flex items-center space-x-1">
                         <Star className="w-3 h-3 text-yellow-500" />
-                        <span className={themeClasses.textSecondary}>{post.likes_count}</span>
+                        <span className={themeClasses.textSecondary}>{post.likes}</span>
                       </div>
                       
                       <div className="flex items-center space-x-1">
                         <MessageSquare className="w-3 h-3 text-blue-500" />
-                        <span className={themeClasses.textSecondary}>{post.comments_count}</span>
-                      </div>
-                      
-                      <div className="flex items-center space-x-1">
-                        <Eye className="w-3 h-3 text-gray-500" />
-                        <span className={themeClasses.textSecondary}>{post.views_count}</span>
+                        <span className={themeClasses.textSecondary}>{post.replies}</span>
                       </div>
                     </div>
                     
                     <div className="flex items-center space-x-1">
                       <Clock className="w-3 h-3 text-gray-400" />
                       <span className={`text-xs ${themeClasses.textSecondary}`}>
-                        {formatDate(post.created_at)}
+                        {post.time}
                       </span>
                     </div>
                   </div>
                   
                   {/* קטגוריה */}
                   <div className="mt-2">
-                    <span 
-                      className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                      style={{ backgroundColor: post.category.color }}
-                    >
-                      {post.category.name}
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-500 text-white">
+                      {post.category}
                     </span>
                   </div>
                 </div>
