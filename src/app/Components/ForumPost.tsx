@@ -16,154 +16,85 @@ const ForumPost: React.FC<ForumPostProps> = ({
   togglePostExpansion, 
   themeClasses 
 }) => {
-  const isExpanded = expandedPosts[post.id.toString()];
-  const previewContent = post.content.length > 120 ? 
-    post.content.substring(0, 120) + '...' : 
-    post.content;
-
-  // פורמט התאריך/זמן
-  const formatTime = (timeString: string) => {
-    // אם זה כבר מפורמט (כמו "לפני 2 שעות"), החזר כמו שזה
-    if (timeString.includes('לפני') || timeString.includes('עכשיו')) {
-      return timeString;
-    }
-    
-    // אחרת, נסה לפרמט תאריך
-    try {
-      const date = new Date(timeString);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffDays = Math.floor(diffHours / 24);
-
-      if (diffHours < 1) {
-        return 'לפני כמה דקות';
-      } else if (diffHours < 24) {
-        return `לפני ${diffHours} שעות`;
-      } else if (diffDays === 1) {
-        return 'אתמול';
-      } else if (diffDays < 7) {
-        return `לפני ${diffDays} ימים`;
-      } else {
-        return date.toLocaleDateString('he-IL');
-      }
-    } catch {
-      return timeString; // החזר את הערך המקורי אם יש שגיאה
-    }
-  };
-
+  const postId = post.id.toString();
+  
   return (
-    <div 
-      className={`${themeClasses.cardBg} ${themeClasses.border} border rounded-lg overflow-hidden ${themeClasses.hover} transition-all duration-200 cursor-pointer h-full flex flex-col`}
-      onClick={() => togglePostExpansion(post.id.toString())}
-    >
-      {/* תמונת הפוסט */}
-      {post.postImage && (
-        <div className="relative">
-          <img 
-            src={post.postImage} 
-            alt={post.title}
-            className="w-full h-32 object-cover"
-            onError={(e) => {
-              // אם התמונה לא נטענת, הסתר אותה
-              e.currentTarget.style.display = 'none';
-            }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-          
-          {/* קטגוריה על התמונה */}
-          <div className="absolute top-2 right-2">
-            <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-500 text-white">
-              {post.category}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* תוכן הפוסט */}
-      <div className="p-4 flex-1 flex flex-col">
-        {/* כותרת */}
-        <h3 className={`text-lg font-semibold ${themeClasses.text} mb-2 line-clamp-2`}>
-          {post.title}
-        </h3>
-
-        {/* תוכן */}
-        <div className="flex-1">
-          <p className={`${themeClasses.textSecondary} text-sm leading-relaxed`}>
-            {isExpanded ? post.content : previewContent}
-          </p>
-          
-          {post.content.length > 120 && (
-            <button className="text-blue-500 hover:text-blue-400 text-sm mt-2 font-medium">
-              {isExpanded ? 'הראה פחות' : 'הראה עוד'}
-            </button>
-          )}
-        </div>
-
-        {/* מידע על הכותב */}
-        <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-full overflow-hidden">
-              <img
-                src={post.avatar}
+    <div className={`${themeClasses.cardBg} ${themeClasses.border} border rounded-lg overflow-hidden ${themeClasses.hover} transition-colors cursor-pointer h-full flex flex-col`}>
+      {/* תמונת הפוסט עם overlay למסכים גדולים */}
+      <div className="relative">
+        <img 
+          src={post.postImage} 
+          alt={post.title}
+          className="w-full h-32 object-cover"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.src = `https://via.placeholder.com/800x200/6366F1/FFFFFF?text=${encodeURIComponent(post.category)}`;
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+        
+        {/* מידע על התמונה - רק במסכים גדולים */}
+        <div className="absolute bottom-0 right-0 p-3 hidden md:block">
+          <div className="flex items-center justify-end mb-2">
+            <div className="flex items-center space-x-2">
+              <span className={`text-white hover:text-blue-300 transition-colors cursor-pointer`}>
+                {post.author}
+              </span>
+              <img 
+                src={post.avatar} 
                 alt={post.author}
-                className="w-full h-full object-cover"
+                className="w-8 h-8 rounded-full border border-blue-500"
                 onError={(e) => {
-                  // אם התמונה לא נטענת, הצג אות ראשונה
                   const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  const parent = target.parentElement;
-                  if (parent) {
-                    parent.innerHTML = `
-                      <div class="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                        <span class="text-white text-xs font-bold">${post.author.charAt(0).toUpperCase()}</span>
-                      </div>
-                    `;
-                  }
+                  target.src = `https://via.placeholder.com/40x40/6366F1/FFFFFF?text=${post.author.charAt(0).toUpperCase()}`;
                 }}
               />
             </div>
-            <div>
-              <p className={`text-sm font-medium ${themeClasses.text}`}>
-                {post.author}
-              </p>
-              <p className={`text-xs ${themeClasses.textSecondary}`}>
-                {formatTime(post.time)}
-              </p>
-            </div>
           </div>
         </div>
+        
+        {/* סטטיסטיקות תחת התמונה */}
+        <div className="flex flex-wrap gap-3 text-xs justify-end">
+          <div className="flex items-center space-x-1 space-x-reverse">
+            <span className="text-gray-300">{post.time}</span>
+            <Clock className="w-3 h-3 text-gray-500" />
+          </div>
 
-        {/* סטטיסטיקות */}
-        <div className="flex items-center justify-between mt-3 text-xs">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-1">
-              <Star className="w-4 h-4 text-yellow-500" />
-              <span className={themeClasses.textSecondary}>{post.likes}</span>
-            </div>
-            
-            <div className="flex items-center space-x-1">
-              <MessageCircle className="w-4 h-4 text-blue-500" />
-              <span className={themeClasses.textSecondary}>{post.replies}</span>
-            </div>
+          <div className="flex items-center space-x-1 space-x-reverse">
+            <span className="text-gray-300">{post.replies}</span>
+            <MessageCircle className="w-3 h-3 text-blue-500" />
           </div>
           
-          <div className="flex items-center space-x-1">
-            <Clock className="w-3 h-3 text-gray-400" />
-            <span className={`text-xs ${themeClasses.textSecondary}`}>
-              {formatTime(post.time)}
-            </span>
+          <div className="flex items-center space-x-1 space-x-reverse">
+            <span className="text-gray-300">{post.likes}</span>
+            <Star className="w-3 h-3 text-yellow-400 fill-current" />
           </div>
         </div>
+      </div>
 
-        {/* קטגוריה (אם אין תמונה) */}
-        {!post.postImage && (
-          <div className="mt-2">
-            <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-500 text-white">
-              {post.category}
-            </span>
-          </div>
-        )}
+      {/* כותרת ותוכן */}
+      <div className="p-3 text-right flex-1">
+        <h3 className={`font-semibold ${themeClasses.text} text-sm hover:text-blue-500 transition-colors line-clamp-2 mb-2`}>
+          {post.title}
+        </h3>
+        
+        <div>
+          <p className={`text-xs ${themeClasses.textSecondary} ${expandedPosts[postId] ? '' : 'line-clamp-3'}`}>
+            {post.content}
+          </p>
+          
+          {post.content.length > 150 && (
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePostExpansion(postId);
+              }}
+              className="text-xs text-blue-500 hover:text-blue-600 transition-colors mt-1 font-medium"
+            >
+              {expandedPosts[postId] ? 'קרא פחות' : 'קרא עוד'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

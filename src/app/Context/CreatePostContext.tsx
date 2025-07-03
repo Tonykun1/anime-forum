@@ -6,42 +6,41 @@ import CreatePostModal from '../Components/CreatePostModal';
 import { ForumPostData } from '../types';
 
 interface CreatePostContextType {
+  isCreatePostOpen: boolean;
   openCreatePost: () => void;
   closeCreatePost: () => void;
-  isCreatePostOpen: boolean;
 }
 
 const CreatePostContext = createContext<CreatePostContextType | undefined>(undefined);
 
-export const useCreatePost = () => {
-  const context = useContext(CreatePostContext);
-  if (!context) {
-    throw new Error('useCreatePost must be used within a CreatePostProvider');
-  }
-  return context;
-};
+interface ThemeClasses {
+  bg: string;
+  cardBg: string;
+  text: string;
+  textSecondary: string;
+  border: string;
+  hover: string;
+}
 
 interface CreatePostProviderProps {
   children: ReactNode;
-  onPostCreated?: (post: ForumPostData) => void;
+  onCreatePost?: (post: ForumPostData) => void;
+  themeClasses?: ThemeClasses;
 }
 
 export const CreatePostProvider: React.FC<CreatePostProviderProps> = ({ 
   children, 
-  onPostCreated 
+  onCreatePost,
+  themeClasses = {
+    bg: 'bg-gray-900',
+    cardBg: 'bg-gray-800',
+    text: 'text-white',
+    textSecondary: 'text-gray-400',
+    border: 'border-gray-700',
+    hover: 'hover:bg-gray-700'
+  }
 }) => {
-  const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
-  const [isDark, setIsDark] = useState(true);
-
-  // Theme classes דינמיות
-  const themeClasses = {
-    bg: isDark ? 'bg-gray-900' : 'bg-gray-50',
-    cardBg: isDark ? 'bg-gray-800' : 'bg-white',
-    text: isDark ? 'text-white' : 'text-gray-900',
-    textSecondary: isDark ? 'text-gray-300' : 'text-gray-600',
-    border: isDark ? 'border-gray-700' : 'border-gray-200',
-    hover: isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-  };
+  const [isCreatePostOpen, setIsCreatePostOpen] = useState<boolean>(false);
 
   const openCreatePost = () => {
     setIsCreatePostOpen(true);
@@ -51,30 +50,47 @@ export const CreatePostProvider: React.FC<CreatePostProviderProps> = ({
     setIsCreatePostOpen(false);
   };
 
-  const handlePostSuccess = (newPost: ForumPostData) => {
-    if (onPostCreated) {
-      onPostCreated(newPost);
+  const handleCreatePost = (post: ForumPostData) => {
+    console.log('Post created:', post);
+    
+    // קריאה לפונקציה החיצונית אם קיימת
+    if (onCreatePost) {
+      onCreatePost(post);
     }
+    
     closeCreatePost();
   };
 
+  const value: CreatePostContextType = {
+    isCreatePostOpen,
+    openCreatePost,
+    closeCreatePost
+  };
+
   return (
-    <CreatePostContext.Provider value={{
-      openCreatePost,
-      closeCreatePost,
-      isCreatePostOpen
-    }}>
+    <CreatePostContext.Provider value={value}>
       {children}
-      
-      {/* פופאפ עולמי - זמין מכל מקום באתר */}
-      {isCreatePostOpen && (
-        <CreatePostModal
-          isOpen={isCreatePostOpen}
-          onClose={closeCreatePost}
-          onSuccess={handlePostSuccess}
-          themeClasses={themeClasses}
-        />
-      )}
+      <CreatePostModal
+        isOpen={isCreatePostOpen}
+        onClose={closeCreatePost}
+        onSuccess={handleCreatePost}
+        themeClasses={themeClasses}
+      />
     </CreatePostContext.Provider>
   );
+};
+
+export const useCreatePost = (): CreatePostContextType => {
+  const context = useContext(CreatePostContext);
+  if (!context) {
+    // במקום לזרוק שגיאה, נחזיר אובייקט ריק
+    return {
+      isCreatePostOpen: false,
+      openCreatePost: () => {
+        console.warn('CreatePost context not available');
+      },
+      closeCreatePost: () => {}
+    };
+  }
+  return context;
 };

@@ -9,10 +9,11 @@ import ForumPost from './Components/ForumPost';
 import UserProfilePage from './Components/UserProfilePage';
 import UserSettingsPage from './Components/UserSettingsPage';
 import { useForumPosts } from './hooks/useForumPosts';
-import { useCreatePost } from './Context/CreatePostContext';
+import { CreatePostProvider, useCreatePost } from './Context/CreatePostContext';
 import { ForumPostData, Anime } from './types';
 
-const AnimeForum: React.FC = () => {
+// רכיב פנימי שמשתמש ב-Context
+const AnimeForumContent: React.FC = () => {
   const [isDark, setIsDark] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<string>('home');
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
@@ -20,16 +21,26 @@ const AnimeForum: React.FC = () => {
   const [expandedPosts, setExpandedPosts] = useState<{ [key: string]: boolean }>({});
   const [showProfile, setShowProfile] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
+  const [localPosts, setLocalPosts] = useState<ForumPostData[]>([]);
 
   const { openCreatePost } = useCreatePost(); // שימוש ב-Context העולמי
 
   // Use the custom hook for forum posts
   const { 
-    posts: forumPosts, 
+    posts: serverPosts, 
     loading: postsLoading, 
     error: postsError, 
     refetch: refetchPosts 
   } = useForumPosts();
+
+  // שילוב פוסטים מהשרת עם פוסטים מקומיים
+  const forumPosts = [...localPosts, ...serverPosts];
+
+  // פונקציה לטיפול ביצירת פוסט חדש
+  const handleCreatePost = (newPost: ForumPostData) => {
+    setLocalPosts(prev => [newPost, ...prev]);
+    refetchPosts(); // רענון הפוסטים מהשרת
+  };
 
   // Anime data
   const newSeasonAnime: Anime[] = [
@@ -398,6 +409,27 @@ const AnimeForum: React.FC = () => {
         {renderContent()}
       </main>
     </div>
+  );
+};
+
+// הרכיב הראשי שעוטף הכל בProvider
+const AnimeForum: React.FC = () => {
+  // Theme classes קבועים ל-Provider
+  const themeClasses = {
+    bg: 'bg-gray-900',
+    cardBg: 'bg-gray-800',
+    text: 'text-white',
+    textSecondary: 'text-gray-300',
+    border: 'border-gray-700',
+    hover: 'hover:bg-gray-700'
+  };
+
+  return (
+    <CreatePostProvider 
+      themeClasses={themeClasses}
+    >
+      <AnimeForumContent />
+    </CreatePostProvider>
   );
 };
 
