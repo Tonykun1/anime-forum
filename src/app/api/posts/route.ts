@@ -1,52 +1,103 @@
-// src/app/api/posts/route.ts - מתוקן לעבוד עם PostgreSQL
+// src/app/api/posts/route.ts - מעודכן למסד הנתונים הקיים
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db/connection';
-import jwt from 'jsonwebtoken';
+import { verifyToken } from '@/lib/auth';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-// Helper function to get current user from JWT
-async function getCurrentUser(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const token = request.cookies.get('auth-token')?.value;
-    if (!token) return null;
-    
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
-    return decoded;
-  } catch (error) {
-    return null;
+    // בדיקת אימות
+    const user = await verifyToken(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'נדרש להתחבר כדי ליצור פוסט' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { title, content, image_url, category_name } = body;
+
+    console.log('Creating post:', { title, content, image_url, category_name, userId: user.id });
+
+    // ולידציה
+    if (!title?.trim() || !content?.trim()) {
+      return NextResponse.json(
+        { error: 'כותרת ותוכן הפוסט נדרשים' },
+        { status: 400 }
+      );
+    }
+
+    // מציאת category_id בהתבסס על השם
+    let categoryId = 1; // ברירת מחדל
+    if (category_name) {
+      try {
+        const categoryQuery = 'SELECT id FROM categories WHERE name = $1';
+        const categoryResult = await db.query(categoryQuery, [category_name]);
+        if (categoryResult.rows.length > 0) {
+          categoryId = categoryResult.rows[0].id;
+        }
+      } catch (err) {
+        console.log('Category lookup failed, using default:', err);
+      }
+    }
+
+    // יצירת הפוסט
+    const postQuery = `
+      INSERT INTO posts (title, content, image_url, author_id, category_id, likes_count, comments_count, views_count)
+      VALUES ($1, $2, $3, $4, $5, 0, 0, 0)
+      RETURNING *
+    `;
+
+    const postResult = await db.query(postQuery, [
+      title.trim(),
+      content.trim(),
+      image_url || null,
+      user.id,
+      categoryId
+    ]);
+
+    const newPost = postResult.rows[0];
+    console.log('Post created:', newPost);
+
+    // החזרת הפוסט החדש
+    const responsePost = {
+      id: newPost.id,
+      title: newPost.title,
+      content: newPost.content,
+      image_url: newPost.image_url,
+      created_at: newPost.created_at,
+      author: {
+        id: user.id,
+        username: user.username,
+        avatar: user.avatar
+      }
+    };
+
+    return NextResponse.json({
+      message: 'הפוסט נוצר בהצלחה',
+      post: responsePost
+    });
+
+  } catch (error: any) {
+    console.error('Create post error:', error);
+    return NextResponse.json(
+      { error: 'שגיאה ביצירת הפוסט: ' + error.message },
+      { status: 500 }
+    );
   }
 }
 
-// GET /api/posts - Get all posts from PostgreSQL
+// קבלת כל הפוסטים מהמסד הנתונים הקיים
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 Trying to fetch posts...');
-    
-    // Test database connection
-    await db.query('SELECT 1');
-    console.log('✅ Database connection OK');
-    
-    // Check if posts table exists
-    const tableExists = await db.query(`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = 'public' 
-          AND table_name = 'posts'
-        );
-      `);
-    
-    if (!tableExists.rows[0].exists) {
-      console.log('❌ Posts table does not exist');
-      return NextResponse.json(
-        { error: 'טבלת הפוסטים לא קיימת. אנא הרץ את ההגדרות תחילה.' },
-        { status: 500 }
-      );
-    }
-    
-    console.log('✅ Table posts exists');
-    
-    // Fetch posts with user and category information
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '20');
+    const offset = (page - 1) * limit;
+
+    console.log('🔄 Fetching posts from database...');
+
+    // שאילתה לקבלת הפוסטים עם פרטי המשתמש והקטגוריה
     const postsQuery = `
       SELECT 
         p.id,
@@ -57,148 +108,94 @@ export async function GET(request: NextRequest) {
         p.comments_count,
         p.views_count,
         p.created_at,
-        u.username as author_username,
-        u.avatar as author_avatar,
-        c.name as category_name,
-        c.color as category_color
+        p.updated_at,
+        u.username,
+        u.avatar,
+        c.name as category_name
       FROM posts p
-      LEFT JOIN users u ON p.author_id = u.id
+      JOIN users u ON p.author_id = u.id
       LEFT JOIN categories c ON p.category_id = c.id
       ORDER BY p.created_at DESC
-      LIMIT 20
+      LIMIT $1 OFFSET $2
     `;
+
+    const result = await db.query(postsQuery, [limit, offset]);
     
-    const result = await db.query(postsQuery);
     console.log(`✅ Found ${result.rows.length} posts`);
-    
-    const formattedPosts = result.rows.map((row: any) => ({
-      id: row.id,
-      title: row.title,
-      content: row.content,
-      image_url: row.image_url,
-      likes_count: row.likes_count || 0,
-      comments_count: row.comments_count || 0,
-      views_count: row.views_count || 0,
-      created_at: row.created_at,
-      author: {
-        username: row.author_username || 'משתמש לא ידוע'
-      },
-      category: {
-        name: row.category_name || 'כללי',
-        color: row.category_color || '#6366F1'
-      }
+
+    // המרת הפוסטים לפורמט הנדרש
+    const posts = result.rows.map(post => ({
+      id: post.id,
+      title: post.title,
+      content: post.content,
+      author: post.username,
+      authorId: null, // לא שמור במבנה הנוכחי
+      authorAvatar: post.avatar || `https://via.placeholder.com/50x50/6366F1/FFFFFF?text=${post.username.substring(0, 2).toUpperCase()}`,
+      postImage: post.image_url || generatePlaceholderImage(post.title),
+      category: post.category_name || 'כללי',
+      likes: parseInt(post.likes_count) || 0,
+      replies: parseInt(post.comments_count) || 0,
+      views: parseInt(post.views_count) || 0,
+      time: getTimeAgo(post.created_at),
+      created_at: post.created_at
     }));
-    
-    return NextResponse.json({ posts: formattedPosts });
-    
+
+    // ספירת סך הפוסטים
+    const countResult = await db.query('SELECT COUNT(*) FROM posts');
+    const totalPosts = parseInt(countResult.rows[0].count);
+
+    return NextResponse.json({
+      posts,
+      pagination: {
+        page,
+        limit,
+        totalPosts,
+        totalPages: Math.ceil(totalPosts / limit)
+      }
+    });
+
   } catch (error: any) {
-    console.error('❌ Error fetching posts:', error);
+    console.error('❌ Get posts error:', error);
     return NextResponse.json(
-      { error: 'שגיאה בטעינת פוסטים: ' + error.message },
+      { error: 'שגיאה בטעינת הפוסטים: ' + error.message },
       { status: 500 }
     );
   }
 }
 
-// POST /api/posts - Create new post in PostgreSQL
-export async function POST(request: NextRequest) {
-  try {
-    console.log('📝 Creating new post...');
-    
-    // Get current user
-    const currentUser = await getCurrentUser(request);
-    if (!currentUser) {
-      return NextResponse.json(
-        { error: 'יש להתחבר כדי ליצור פוסט' },
-        { status: 401 }
-      );
-    }
-    
-    console.log('👤 Current user:', currentUser.username);
-    
-    const body = await request.json();
-    const { title, content, image_url, category_name } = body;
-    
-    console.log('📄 Post data:', { title, content, image_url, category_name });
-    
-    // Validation
-    if (!title?.trim() || !content?.trim()) {
-      return NextResponse.json(
-        { error: 'כותרת ותוכן הפוסט נדרשים' },
-        { status: 400 }
-      );
-    }
-    
-    // Get category ID
-    let categoryId = 1; // Default category
-    if (category_name) {
-      const categoryResult = await db.query(
-        'SELECT id FROM categories WHERE name = $1',
-        [category_name]
-      );
-      if (categoryResult.rows.length > 0) {
-        categoryId = categoryResult.rows[0].id;
-      }
-    }
-    
-    // Insert new post
-    const insertQuery = `
-      INSERT INTO posts (title, content, image_url, category_id, author_id, likes_count, comments_count, views_count)
-      VALUES ($1, $2, $3, $4, $5, 0, 0, 0)
-      RETURNING id, title, content, image_url, created_at
-    `;
-    
-    const result = await db.query(insertQuery, [
-      title.trim(),
-      content.trim(),
-      image_url || null,
-      categoryId,
-      currentUser.id
-    ]);
-    
-    const newPost = result.rows[0];
-    console.log('✅ Post created:', newPost);
-    
-    // Get the complete post with user and category info
-    const fullPostQuery = `
-      SELECT 
-        p.id, p.title, p.content, p.image_url, p.created_at,
-        u.username as author_username,
-        u.avatar as author_avatar,
-        c.name as category_name,
-        c.color as category_color
-      FROM posts p
-      LEFT JOIN users u ON p.author_id = u.id
-      LEFT JOIN categories c ON p.category_id = c.id
-      WHERE p.id = $1
-    `;
-    
-    const fullPostResult = await db.query(fullPostQuery, [newPost.id]);
-    const fullPost = fullPostResult.rows[0];
-    
-    return NextResponse.json({
-      message: 'הפוסט נוצר בהצלחה!',
-      post: {
-        id: fullPost.id,
-        title: fullPost.title,
-        content: fullPost.content,
-        image_url: fullPost.image_url,
-        created_at: fullPost.created_at,
-        author: {
-          username: fullPost.author_username
-        },
-        category: {
-          name: fullPost.category_name,
-          color: fullPost.category_color
-        }
-      }
-    }, { status: 201 });
-    
-  } catch (error: any) {
-    console.error('❌ Error creating post:', error);
-    return NextResponse.json(
-      { error: 'שגיאה ביצירת פוסט: ' + error.message },
-      { status: 500 }
-    );
+// פונקציה ליצירת תמונת placeholder
+function generatePlaceholderImage(title: string): string {
+  const colors = [
+    '3B82F6', 'EF4444', '10B981', 'F59E0B', 
+    '8B5CF6', 'F97316', 'EC4899', '06B6D4'
+  ];
+  
+  const colorIndex = title.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+  const color = colors[colorIndex];
+  const shortText = title.substring(0, 15).replace(/\s+/g, '+');
+  
+  return `https://via.placeholder.com/800x200/${color}/FFFFFF?text=${encodeURIComponent(shortText)}`;
+}
+
+// פונקציה לחישוב זמן יחסי
+function getTimeAgo(dateString: string): string {
+  const now = new Date();
+  const postDate = new Date(dateString);
+  const diffInMs = now.getTime() - postDate.getTime();
+  
+  const minutes = Math.floor(diffInMs / (1000 * 60));
+  const hours = Math.floor(diffInMs / (1000 * 60 * 60));
+  const days = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+  
+  if (minutes < 1) {
+    return 'עכשיו';
+  } else if (minutes < 60) {
+    return `לפני ${minutes} דקות`;
+  } else if (hours < 24) {
+    return `לפני ${hours} שעות`;
+  } else if (days < 30) {
+    return `לפני ${days} ימים`;
+  } else {
+    return postDate.toLocaleDateString('he-IL');
   }
 }

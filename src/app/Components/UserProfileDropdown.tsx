@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { LogOut, Settings, User as UserIcon, Calendar, Heart, MessageSquare, Plus } from 'lucide-react';
 import { useAuth } from '../Context/AuthContext';
-import { useCreatePost } from '.././Context/CreatePostContext';
+import { useRouter } from 'next/navigation'; // הוספת useRouter לניווט
 
 interface UserProfileDropdownProps {
   themeClasses: {
@@ -25,7 +25,7 @@ const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuth();
-  const { openCreatePost } = useCreatePost(); // שימוש ב-Context העולמי
+  const router = useRouter(); // הוספת router לניווט
 
   // סגירת התפריט בלחיצה מחוץ לו
   useEffect(() => {
@@ -47,7 +47,7 @@ const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
   };
 
   const handleCreatePost = () => {
-    openCreatePost(); // פתיחת הפופאפ העולמי
+    router.push('/newpost'); // ניווט לדף הפוסט החדש
     setIsOpen(false);
   };
 

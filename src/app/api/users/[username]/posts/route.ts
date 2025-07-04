@@ -1,70 +1,107 @@
-// src/app/api/users/[username]/posts/route.ts
+// src/app/api/users/[username]/posts/route.ts - מעודכן למסד הנתונים שלך
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db/connection';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { username: string } }
+  { params }: { params: Promise<{ username: string }> }
 ) {
   try {
-    const { username } = params;
+    const { username } = await params;
+
+    console.log('API: Fetching posts for user:', username);
+
+    // שליפת הפוסטים של המשתמש מהמסד הנתונים שלך
+    const postsQuery = `
+      SELECT 
+        p.id,
+        p.title,
+        p.content,
+        p.image_url,
+        p.likes_count,
+        p.comments_count,
+        p.views_count,
+        p.created_at,
+        p.updated_at,
+        p.category_id,
+        p.author_id,
+        u.username,
+        u.avatar,
+        c.name as category_name
+      FROM posts p
+      JOIN users u ON p.author_id = u.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      WHERE u.username = $1
+      ORDER BY p.created_at DESC
+    `;
+
+    const result = await db.query(postsQuery, [username]);
     
-    // פוסטים לדוגמה עבור tonykun
-    if (username === 'tonykun') {
-      return NextResponse.json({
-        posts: [
-          {
-            id: 1,
-            title: "ברוכים הבאים לפורום האנימה החדש!",
-            content: "היי לכולם! אני מתרגש להכריז על פתיחת הפורום החדש שלנו. כאן תוכלו לדון על כל האנימות החמות, לשתף המלצות ולהכיר חברים חדשים עם תחומי עניין דומים.",
-            image_url: "https://via.placeholder.com/800x400/3B82F6/FFFFFF?text=Welcome+Post",
-            likes_count: 45,
-            comments_count: 12,
-            created_at: "2024-01-01T10:00:00Z",
-            category: {
-              name: "הודעות",
-              color: "#3B82F6"
-            }
-          },
-          {
-            id: 2,
-            title: "מה אתם חושבים על Demon Slayer Season 4?",
-            content: "הפרק החדש שיצא השבוע היה פשוט מדהים! האנימציה של ufotable ממשיכה לא להפסיק להדהים. מה הרגשות שלכם מהעונה החדשה?",
-            image_url: "https://via.placeholder.com/800x400/EF4444/FFFFFF?text=Demon+Slayer",
-            likes_count: 67,
-            comments_count: 23,
-            created_at: "2024-01-15T14:30:00Z",
-            category: {
-              name: "דיונים",
-              color: "#EF4444"
-            }
-          },
-          {
-            id: 3,
-            title: "רשימת ההמלצות שלי לחורף 2024",
-            content: "הכנתי רשימה של האנימות הכי מבטיחות לעונת החורף. יש כאן משהו לכל אחד - מאקשן מטורף ועד רומנטיקה מתוקה.",
-            image_url: "https://via.placeholder.com/800x400/8B5CF6/FFFFFF?text=Winter+2024+Anime",
-            likes_count: 89,
-            comments_count: 34,
-            created_at: "2024-01-20T16:45:00Z",
-            category: {
-              name: "המלצות",
-              color: "#8B5CF6"
-            }
-          }
-        ]
-      });
-    }
+    console.log(`Found ${result.rows.length} posts for user: ${username}`);
     
-    // עבור משתמשים אחרים - פוסטים ריקים או מועטים
+    // המרת הפוסטים לפורמט הנדרש
+    const posts = result.rows.map(post => {
+      const timeAgo = getTimeAgo(post.created_at);
+      
+      return {
+        id: post.id,
+        title: post.title,
+        content: post.content,
+        author: post.username,
+        authorAvatar: post.avatar || `https://via.placeholder.com/50x50/6366F1/FFFFFF?text=${post.username.substring(0, 2).toUpperCase()}`,
+        image_url: post.image_url,
+        category: post.category_name || 'כללי',
+        likes_count: parseInt(post.likes_count) || 0,
+        comments_count: parseInt(post.comments_count) || 0,
+        views_count: parseInt(post.views_count) || 0,
+        created_at: post.created_at,
+        updated_at: post.updated_at,
+        time_ago: timeAgo,
+        category_id: post.category_id,
+        author_id: post.author_id
+      };
+    });
+
     return NextResponse.json({
-      posts: []
+      posts,
+      totalPosts: posts.length,
+      username: username
     });
     
   } catch (error: any) {
-    console.error('Error fetching user posts:', error);
+    console.error('API Error:', error);
     return NextResponse.json(
-      { error: 'שגיאה בטעינת פוסטים' },
+      { error: 'שגיאה בטעינת הפוסטים: ' + error.message },
       { status: 500 }
     );
+  }
+}
+
+// פונקציה לחישוב זמן יחסי
+function getTimeAgo(dateString: string): string {
+  const now = new Date();
+  const postDate = new Date(dateString);
+  const diffInMs = now.getTime() - postDate.getTime();
+  
+  const minutes = Math.floor(diffInMs / (1000 * 60));
+  const hours = Math.floor(diffInMs / (1000 * 60 * 60));
+  const days = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+  const weeks = Math.floor(days / 7);
+  const months = Math.floor(days / 30);
+  
+  if (minutes < 1) {
+    return 'עכשיו';
+  } else if (minutes < 60) {
+    return `לפני ${minutes} דקות`;
+  } else if (hours < 24) {
+    return `לפני ${hours} שעות`;
+  } else if (days < 7) {
+    return `לפני ${days} ימים`;
+  } else if (weeks < 4) {
+    return `לפני ${weeks} שבועות`;
+  } else if (months < 12) {
+    return `לפני ${months} חודשים`;
+  } else {
+    return postDate.toLocaleDateString('he-IL');
   }
 }

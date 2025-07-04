@@ -1,17 +1,14 @@
-// src/app/Components/NavBar.tsx - מתוקן עם העברת פונקציית פוסט חדש
+// src/app/Components/NavBar.tsx - עם ניווט אמיתי
 import React, { useState } from 'react';
 import { Search, Moon, Sun, Home, Film, Play, Bookmark, MessageCircle, Menu, ChevronDown, Plus, LogIn } from 'lucide-react';
 import { useAuth } from '../Context/AuthContext';
+import { useRouter, usePathname } from 'next/navigation';
 import UserProfileDropdown from './UserProfileDropdown';
 import LoginModal from './LoginModal';
 
 interface NavBarProps {
   isDark: boolean;
   toggleTheme: () => void;
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
-  isMenuOpen: boolean;
-  toggleMenu: () => void;
   onCreatePost: () => void;
   onProfileClick: () => void;
   onSettingsClick: () => void;
@@ -28,10 +25,6 @@ interface NavBarProps {
 const NavBar: React.FC<NavBarProps> = ({ 
   isDark, 
   toggleTheme, 
-  activeTab, 
-  setActiveTab, 
-  isMenuOpen, 
-  toggleMenu,
   onCreatePost,
   onProfileClick,
   onSettingsClick,
@@ -39,6 +32,34 @@ const NavBar: React.FC<NavBarProps> = ({
 }) => {
   const { isAuthenticated } = useAuth();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // פונקציה לניווט
+  const handleNavigation = (path: string) => {
+    router.push(path);
+    setIsMenuOpen(false); // סגירת התפריט הנייד
+  };
+
+  // פונקציה לבדיקה אם הקישור פעיל
+  const isActiveLink = (path: string) => {
+    if (path === '/') {
+      return pathname === '/';
+    }
+    return pathname.startsWith(path);
+  };
+
+  // רשימת הקישורים
+  const navigationItems = [
+    { id: 'home', icon: Home, label: 'בית', path: '/' },
+    { id: 'posts', icon: MessageCircle, label: 'פוסטים', path: '/posts' },
+    { id: 'series', icon: Film, label: 'סדרות', path: '/series' },
+    { id: 'movies', icon: Play, label: 'סרטים', path: '/movies' },
+    { id: 'watchlist', icon: Bookmark, label: 'רשימת צפייה', path: '/watchlist' }
+  ];
+
+  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
   return (
     <>
@@ -46,31 +67,33 @@ const NavBar: React.FC<NavBarProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-8">
-              <h1 className={`text-2xl font-bold ${themeClasses.text} flex items-center`}>
+              {/* לוגו */}
+              <button
+                onClick={() => handleNavigation('/')}
+                className={`text-2xl font-bold ${themeClasses.text} flex items-center hover:text-blue-400 transition-colors`}
+              >
                 <Film className="mr-2 text-blue-500" />
                 אנימה פורום
-              </h1>
+              </button>
+
+              {/* כפתור תפריט נייד */}
               <button
                 onClick={toggleMenu}
-                className={`flex items-center space-x-2 ${themeClasses.hover} px-3 py-2 rounded-md transition-colors`}
+                className={`flex items-center space-x-2 ${themeClasses.hover} px-3 py-2 rounded-md transition-colors md:hidden`}
               >
                 <Menu className={`w-5 h-5 ${themeClasses.text}`} />
                 <span className={`font-medium ${themeClasses.text}`}>תפריט</span>
                 <ChevronDown className={`w-4 h-4 ${themeClasses.text} transition-transform ${isMenuOpen ? 'rotate-180' : ''}`} />
               </button>
+
+              {/* תפריט עיקרי - דסקטופ */}
               <div className="hidden md:flex space-x-6">
-                {[
-                  { id: 'home', icon: Home, label: 'בית' },
-                  { id: 'posts', icon: MessageCircle, label: 'פוסטים' },
-                  { id: 'series', icon: Film, label: 'סדרות' },
-                  { id: 'movies', icon: Play, label: 'סרטים' },
-                  { id: 'watchlist', icon: Bookmark, label: 'רשימת צפייה' }
-                ].map(({ id, icon: Icon, label }) => (
+                {navigationItems.map(({ id, icon: Icon, label, path }) => (
                   <button
                     key={id}
-                    onClick={() => setActiveTab(id)}
+                    onClick={() => handleNavigation(path)}
                     className={`flex items-center space-x-2 px-3 py-2 rounded-md transition-colors ${
-                      activeTab === id 
+                      isActiveLink(path)
                         ? 'bg-blue-500 text-white' 
                         : `${themeClasses.text} ${themeClasses.hover}`
                     }`}
@@ -105,13 +128,12 @@ const NavBar: React.FC<NavBarProps> = ({
                 )}
               </button>
 
-
-
               {/* פרופיל משתמש או כפתור התחברות */}
               {isAuthenticated ? (
                 <UserProfileDropdown 
                   themeClasses={themeClasses} 
-                  onCreatePost={onCreatePost}
+                  onProfileClick={onProfileClick}
+                  onSettingsClick={onSettingsClick}
                 />
               ) : (
                 <button
@@ -129,21 +151,12 @@ const NavBar: React.FC<NavBarProps> = ({
           {isMenuOpen && (
             <div className={`md:hidden mt-4 pb-4 ${themeClasses.border} border-t`}>
               <div className="flex flex-col space-y-2 mt-4">
-                {[
-                  { id: 'home', icon: Home, label: 'בית' },
-                  { id: 'posts', icon: MessageCircle, label: 'פוסטים' },
-                  { id: 'series', icon: Film, label: 'סדרות' },
-                  { id: 'movies', icon: Play, label: 'סרטים' },
-                  { id: 'watchlist', icon: Bookmark, label: 'רשימת צפייה' }
-                ].map(({ id, icon: Icon, label }) => (
+                {navigationItems.map(({ id, icon: Icon, label, path }) => (
                   <button
                     key={id}
-                    onClick={() => {
-                      setActiveTab(id);
-                      toggleMenu();
-                    }}
+                    onClick={() => handleNavigation(path)}
                     className={`flex items-center space-x-2 px-3 py-2 rounded-md transition-colors text-right ${
-                      activeTab === id 
+                      isActiveLink(path)
                         ? 'bg-blue-500 text-white' 
                         : `${themeClasses.text} ${themeClasses.hover}`
                     }`}

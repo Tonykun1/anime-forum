@@ -4,13 +4,14 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from './Context/AuthContext';
 import { CreatePostProvider } from './Context/CreatePostContext';
-
-const inter = Inter({ subsets: ['latin'] });
+import LayoutContent  from './Context/LayoutContent';
 
 export const metadata: Metadata = {
   title: 'אנימה פורום',
   description: 'פורום דיונים על אנימה',
 };
+
+const inter = Inter({ subsets: ['latin'] });
 
 export default function RootLayout({
   children,
@@ -22,7 +23,9 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProvider>
           <CreatePostProvider>
-            {children}
+            <LayoutContent>
+              {children}
+            </LayoutContent>
           </CreatePostProvider>
         </AuthProvider>
       </body>

@@ -1,46 +1,18 @@
-// src/app/page.tsx
+// src/app/page.tsx - מעודכן עם קומפוננט PostsList
 'use client';
 
 import React, { useState } from 'react';
-import NavBar from './Components/NavBar';
 import AnimeCard from './Components/AnimeCard';
 import AnimeCarousel from './Components/AnimeCarousel';
-import ForumPost from './Components/ForumPost';
-import UserProfilePage from './Components/UserProfilePage';
-import UserSettingsPage from './Components/UserSettingsPage';
-import { useForumPosts } from './hooks/useForumPosts';
-import { CreatePostProvider, useCreatePost } from './Context/CreatePostContext';
-import { ForumPostData, Anime } from './types';
+import PostsList from './Components/PostsList';
+import { CreatePostProvider } from './Context/CreatePostContext';
+import { Anime } from './types';
 
 // רכיב פנימי שמשתמש ב-Context
 const AnimeForumContent: React.FC = () => {
   const [isDark, setIsDark] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<string>('home');
-  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [currentSlide, setCurrentSlide] = useState<number>(0);
-  const [expandedPosts, setExpandedPosts] = useState<{ [key: string]: boolean }>({});
-  const [showProfile, setShowProfile] = useState<boolean>(false);
-  const [showSettings, setShowSettings] = useState<boolean>(false);
-  const [localPosts, setLocalPosts] = useState<ForumPostData[]>([]);
-
-  const { openCreatePost } = useCreatePost(); // שימוש ב-Context העולמי
-
-  // Use the custom hook for forum posts
-  const { 
-    posts: serverPosts, 
-    loading: postsLoading, 
-    error: postsError, 
-    refetch: refetchPosts 
-  } = useForumPosts();
-
-  // שילוב פוסטים מהשרת עם פוסטים מקומיים
-  const forumPosts = [...localPosts, ...serverPosts];
-
-  // פונקציה לטיפול ביצירת פוסט חדש
-  const handleCreatePost = (newPost: ForumPostData) => {
-    setLocalPosts(prev => [newPost, ...prev]);
-    refetchPosts(); // רענון הפוסטים מהשרת
-  };
 
   // Anime data
   const newSeasonAnime: Anime[] = [
@@ -145,16 +117,6 @@ const AnimeForumContent: React.FC = () => {
   };
 
   // Event handlers
-  const toggleTheme = () => setIsDark(!isDark);
-  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
-  
-  const togglePostExpansion = (postId: string) => {
-    setExpandedPosts(prev => ({
-      ...prev,
-      [postId]: !prev[postId]
-    }));
-  };
-
   const nextSlide = () => {
     setCurrentSlide((prev) => (prev + 1) % newSeasonAnime.length);
   };
@@ -163,86 +125,6 @@ const AnimeForumContent: React.FC = () => {
     setCurrentSlide((prev) => (prev - 1 + newSeasonAnime.length) % newSeasonAnime.length);
   };
 
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab);
-    setIsMenuOpen(false);
-  };
-
-  const handleProfileClick = () => {
-    setShowProfile(true);
-    setShowSettings(false);
-  };
-
-  const handleSettingsClick = () => {
-    setShowSettings(true);
-    setShowProfile(false);
-  };
-
-  const handleBackFromProfile = () => {
-    setShowProfile(false);
-  };
-
-  const handleBackFromSettings = () => {
-    setShowSettings(false);
-  };
-
-  // Show settings page
-  if (showSettings) {
-    return (
-      <div className={`min-h-screen ${themeClasses.bg} transition-colors duration-300`}>
-        <NavBar 
-          isDark={isDark}
-          toggleTheme={toggleTheme}
-          activeTab={activeTab}
-          setActiveTab={handleTabChange}
-          isMenuOpen={isMenuOpen}
-          toggleMenu={toggleMenu}
-          onCreatePost={openCreatePost}
-          onProfileClick={handleProfileClick}
-          onSettingsClick={handleSettingsClick}
-          themeClasses={themeClasses}
-        />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <UserSettingsPage 
-            themeClasses={themeClasses}
-            onBack={handleBackFromSettings}
-            isDark={isDark}
-            toggleTheme={toggleTheme}
-          />
-        </main>
-      </div>
-    );
-  }
-
-  // Show profile page
-  if (showProfile) {
-    return (
-      <div className={`min-h-screen ${themeClasses.bg} transition-colors duration-300`}>
-        <NavBar 
-          isDark={isDark}
-          toggleTheme={toggleTheme}
-          activeTab={activeTab}
-          setActiveTab={handleTabChange}
-          isMenuOpen={isMenuOpen}
-          toggleMenu={toggleMenu}
-          onCreatePost={openCreatePost}
-          onProfileClick={handleProfileClick}
-          onSettingsClick={handleSettingsClick}
-          themeClasses={themeClasses}
-        />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <UserProfilePage 
-            themeClasses={themeClasses}
-            userPosts={forumPosts}
-            onBack={handleBackFromProfile}
-            onCreatePost={openCreatePost}
-          />
-        </main>
-      </div>
-    );
-  }
-
-  // Render content based on active tab
   const renderContent = () => {
     switch (activeTab) {
       case 'reviews':
@@ -285,41 +167,11 @@ const AnimeForumContent: React.FC = () => {
         return (
           <div className="space-y-8">
             <h2 className={`text-3xl font-bold ${themeClasses.text} mb-6`}>פוסטים ודיונים</h2>
-            
-            {postsLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4">
-                {[...Array(6)].map((_, index) => (
-                  <div key={`skeleton-${index}`} className={`${themeClasses.cardBg} ${themeClasses.border} border rounded-lg p-4 animate-pulse`}>
-                    <div className="h-32 bg-gray-600 rounded mb-4"></div>
-                    <div className="h-4 bg-gray-600 rounded mb-2"></div>
-                    <div className="h-3 bg-gray-600 rounded w-3/4"></div>
-                  </div>
-                ))}
-              </div>
-            ) : postsError ? (
-              <div className={`${themeClasses.cardBg} ${themeClasses.border} border rounded-lg p-6 text-center`}>
-                <p className={`${themeClasses.text} text-lg mb-4`}>שגיאה בטעינת הפוסטים</p>
-                <p className={`${themeClasses.textSecondary} mb-4`}>{postsError}</p>
-                <button
-                  onClick={refetchPosts}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  נסה שנית
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4">
-                {forumPosts.map(post => (
-                  <ForumPost 
-                    key={post.id} 
-                    post={post} 
-                    expandedPosts={expandedPosts} 
-                    togglePostExpansion={togglePostExpansion}
-                    themeClasses={themeClasses}
-                  />
-                ))}
-              </div>
-            )}
+            <PostsList 
+              themeClasses={themeClasses}
+              layout="grid"
+              limit={20}
+            />
           </div>
         );
         
@@ -350,41 +202,11 @@ const AnimeForumContent: React.FC = () => {
             
             <section>
               <h2 className={`text-3xl font-bold ${themeClasses.text} mb-6`}>דיונים ופוסטים</h2>
-              
-              {postsLoading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4">
-                  {[...Array(6)].map((_, index) => (
-                    <div key={`skeleton-${index}`} className={`${themeClasses.cardBg} ${themeClasses.border} border rounded-lg p-4 animate-pulse`}>
-                      <div className="h-32 bg-gray-600 rounded mb-4"></div>
-                      <div className="h-4 bg-gray-600 rounded mb-2"></div>
-                      <div className="h-3 bg-gray-600 rounded w-3/4"></div>
-                    </div>
-                  ))}
-                </div>
-              ) : postsError ? (
-                <div className={`${themeClasses.cardBg} ${themeClasses.border} border rounded-lg p-6 text-center`}>
-                  <p className={`${themeClasses.text} text-lg mb-4`}>שגיאה בטעינת הפוסטים</p>
-                  <p className={`${themeClasses.textSecondary} mb-4`}>{postsError}</p>
-                  <button
-                    onClick={refetchPosts}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-                  >
-                    נסה שנית
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4">
-                  {forumPosts.map(post => (
-                    <ForumPost 
-                      key={post.id} 
-                      post={post} 
-                      expandedPosts={expandedPosts} 
-                      togglePostExpansion={togglePostExpansion}
-                      themeClasses={themeClasses}
-                    />
-                  ))}
-                </div>
-              )}
+              <PostsList 
+                themeClasses={themeClasses}
+                layout="grid"
+                limit={12}
+              />
             </section>
           </div>
         );
@@ -393,18 +215,6 @@ const AnimeForumContent: React.FC = () => {
 
   return (
     <div className={`min-h-screen ${themeClasses.bg} transition-colors duration-300`}>
-      <NavBar 
-        isDark={isDark}
-        toggleTheme={toggleTheme}
-        activeTab={activeTab}
-        setActiveTab={handleTabChange}
-        isMenuOpen={isMenuOpen}
-        toggleMenu={toggleMenu}
-        onCreatePost={openCreatePost}
-        onProfileClick={handleProfileClick}
-        onSettingsClick={handleSettingsClick}
-        themeClasses={themeClasses}
-      />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {renderContent()}
       </main>
