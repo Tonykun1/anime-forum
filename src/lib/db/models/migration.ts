@@ -141,7 +141,7 @@ export async function createTestUser(): Promise<{ success: boolean; message: str
     const passwordHash = await bcrypt.hash('123456', 12);
     
     const result = await db.query(`
-      INSERT INTO users (username, email, password_hash, avatar, role, bio, cover_image, posts_count, likes_count) 
+      INSERT INTO users (username, email, password, avatar, role, bio, cover_image, posts_count, likes_count) 
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING id, username, email, avatar, role
     `, [

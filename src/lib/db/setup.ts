@@ -1,129 +1,117 @@
-// src/lib/db/setup.ts - מתוקן
-import { db } from './connection';
-import { allTables } from './schema';
+// 2. תקן את app/api/setup/route.ts
+import { NextResponse } from 'next/server';
+import { db } from '@/lib/db/connection';
 
-export async function setupDatabase(): Promise<{ success: boolean; message: string; details?: any }> {
+export async function GET() {
   try {
     console.log('🚀 Starting database setup...');
 
-    // Drop existing tables in correct order (due to foreign keys)
-    console.log('🗑️ Dropping existing tables...');
-    await db.query('DROP TABLE IF EXISTS posts CASCADE;');
-    await db.query('DROP TABLE IF EXISTS categories CASCADE;');
-    await db.query('DROP TABLE IF EXISTS users CASCADE;');
+    // יצירת טבלת users מלאה
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(50) NOT NULL UNIQUE,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255),
+        bio TEXT,
+        avatar TEXT,
+        cover_image TEXT,
+        role VARCHAR(20) DEFAULT 'user',
+        posts_count INTEGER DEFAULT 0,
+        likes_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
 
-    // Create all tables
-    console.log('🏗️ Creating tables...');
-    for (const [index, tableQuery] of allTables.entries()) {
-      await db.query(tableQuery);
-      console.log(`✅ Table ${index + 1}/${allTables.length} created`);
+    // יצירת טבלת categories
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS categories (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(50) UNIQUE NOT NULL,
+        color VARCHAR(7) DEFAULT '#6366F1',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // יצירת טבלת posts
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS posts (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        content TEXT NOT NULL,
+        image_url VARCHAR(500),
+        category_id INTEGER REFERENCES categories(id),
+        author_id INTEGER REFERENCES users(id),
+        likes_count INTEGER DEFAULT 0,
+        comments_count INTEGER DEFAULT 0,
+        views_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    console.log('✅ Tables created');
+
+    // בדוק אם יש נתונים
+    const usersCount = await db.query('SELECT COUNT(*) FROM users');
+    const categoriesCount = await db.query('SELECT COUNT(*) FROM categories');
+
+    // הכנס נתוני בדיקה אם אין
+    if (parseInt(usersCount.rows[0].count) === 0) {
+      const bcrypt = require('bcryptjs');
+      const passwordHash = await bcrypt.hash('123456', 12);
+      
+      await db.query(`
+        INSERT INTO users (username, email, password, bio, avatar, cover_image, posts_count, likes_count) 
+        VALUES 
+          ('TestUser', 'test@example.com', $1, 'משתמש לבדיקה', 
+           'https://picsum.photos/100/100?random=1', 'https://picsum.photos/800/200?random=1', 0, 0),
+          ('AdminUser', 'admin@example.com', $1, 'מנהל המערכת',
+           'https://picsum.photos/100/100?random=2', 'https://picsum.photos/800/200?random=2', 0, 0)
+      `, [passwordHash]);
+      
+      console.log('✅ Test users created');
     }
 
-    // Insert basic seed data
-    console.log('🌱 Inserting seed data...');
-    await insertSeedData();
+    if (parseInt(categoriesCount.rows[0].count) === 0) {
+      await db.query(`
+        INSERT INTO categories (name, color) 
+        VALUES 
+          ('דיונים', '#3B82F6'),
+          ('ביקורות', '#10B981'),
+          ('המלצות', '#F59E0B'),
+          ('שאלות', '#8B5CF6'),
+          ('חדשות', '#EF4444'),
+          ('מימים', '#EC4899')
+      `);
+      
+      console.log('✅ Categories created');
+    }
 
-    // Verify setup
-    const verification = await verifySetup();
+    // בדיקה סופית
+    const finalUsersCount = await db.query('SELECT COUNT(*) FROM users');
+    const finalCategoriesCount = await db.query('SELECT COUNT(*) FROM categories');
+
+    console.log('🎉 Database setup completed!');
     
-    console.log('🎉 Database setup completed successfully!');
-    
-    return {
+    return NextResponse.json({
       success: true,
       message: 'Database setup completed successfully!',
-      details: verification
-    };
+      counts: {
+        users: parseInt(finalUsersCount.rows[0].count),
+        categories: parseInt(finalCategoriesCount.rows[0].count)
+      }
+    });
 
   } catch (error: any) {
     console.error('❌ Database setup failed:', error);
-    return {
+    return NextResponse.json({
       success: false,
       message: 'Database setup failed: ' + error.message
-    };
+    }, { status: 500 });
   }
 }
 
-async function insertSeedData(): Promise<void> {
-  // Insert categories
-  const categories = [
-    { name: 'שונן', color: '#FF6B6B' },
-    { name: 'אקשן', color: '#4ECDC4' },
-    { name: 'רומנטיקה', color: '#45B7D1' },
-    { name: 'פנטזיה', color: '#96CEB4' },
-    { name: 'מכה', color: '#FFEAA7' },
-    { name: 'דרמה', color: '#DDA0DD' }
-  ];
-
-  for (const category of categories) {
-    await db.query(
-      'INSERT INTO categories (name, color) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING',
-      [category.name, category.color]
-    );
-  }
-
-  // Insert a default user if none exists
-  const userCheck = await db.query('SELECT COUNT(*) FROM users');
-  if (parseInt(userCheck.rows[0].count) === 0) {
-    const bcrypt = require('bcryptjs');
-    const defaultPassword = await bcrypt.hash('123456', 12);
-    
-    await db.query(`
-      INSERT INTO users (username, email, password, avatar, role, bio, cover_image) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [
-      'Admin',
-      'admin@anime-forum.com',
-      defaultPassword,
-      'https://via.placeholder.com/100x100/6366F1/FFFFFF?text=AD',
-      'admin',
-      'מנהל האתר',
-      'https://via.placeholder.com/800x200/4F46E5/FFFFFF?text=Admin'
-    ]);
-  }
-}
-
-export async function verifySetup(): Promise<any> {
-  try {
-    // Check tables exist
-    const tablesCheck = await db.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_name IN ('users', 'categories', 'posts')
-      ORDER BY table_name;
-    `);
-
-    // Count data
-    const categoriesCount = await db.query('SELECT COUNT(*) FROM categories');
-    const usersCount = await db.query('SELECT COUNT(*) FROM users');
-    const postsCount = await db.query('SELECT COUNT(*) FROM posts');
-
-    return {
-      tablesCreated: tablesCheck.rows.map(row => row.table_name),
-      dataCount: {
-        categories: parseInt(categoriesCount.rows[0].count),
-        users: parseInt(usersCount.rows[0].count),
-        posts: parseInt(postsCount.rows[0].count)
-      }
-    };
-  } catch (error: any) {
-    return { error: error.message };
-  }
-}
-
-export async function checkIfSetupNeeded(): Promise<boolean> {
-  try {
-    const tablesCheck = await db.query(`
-      SELECT COUNT(*) as table_count
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_name IN ('users', 'categories', 'posts');
-    `);
-
-    const tableCount = parseInt(tablesCheck.rows[0].table_count);
-    return tableCount < 3; // Need setup if less than 3 tables exist
-  } catch (error) {
-    console.error('Error checking setup status:', error);
-    return true; // Assume setup needed if we can't check
-  }
+export async function POST() {
+  return GET();
 }
