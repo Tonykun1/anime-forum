@@ -1,6 +1,6 @@
-// src/components/ImageUpload.tsx
+// src/app/Components/ImageUpload.tsx - מעודכן למבנה API החדש
 import React, { useRef, useState } from 'react';
-import { Upload, X, Image as ImageIcon, Link, Camera } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Link, Camera, AlertCircle, Check } from 'lucide-react';
 
 interface ImageUploadProps {
   value: string;
@@ -17,6 +17,9 @@ interface ImageUploadProps {
     border: string;
     hover: string;
   };
+  maxSize?: number;
+  allowedTypes?: string[];
+  showPreview?: boolean;
 }
 
 const ImageUpload: React.FC<ImageUploadProps> = ({
@@ -26,14 +29,38 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
   placeholder = "הכנס קישור לתמונה או העלה מהמחשב",
   className = "",
   previewClassName = "w-20 h-20",
-  themeClasses
+  themeClasses,
+  maxSize = 5 * 1024 * 1024, // 5MB default
+  allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'],
+  showPreview = true
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMethod, setUploadMethod] = useState<'url' | 'file'>('url');
-  const [urlInput, setUrlInput] = useState(value);
+  const [urlInput, setUrlInput] = useState(value || '');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  // המרת קובץ ל-Base64
+  // בדיקת תקינות URL של תמונה
+  const isValidImageUrl = (url: string): boolean => {
+    if (!url) return false;
+    try {
+      new URL(url);
+      const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+      const urlLower = url.toLowerCase();
+      return imageExtensions.some(ext => urlLower.includes(ext)) || 
+             urlLower.includes('placeholder') || 
+             urlLower.includes('via.placeholder') ||
+             urlLower.includes('picsum') ||
+             urlLower.includes('unsplash') ||
+             urlLower.includes('ui-avatars') ||
+             urlLower.includes('/uploads/'); // תמיכה בתמונות שהועלו לשרת
+    } catch {
+      return false;
+    }
+  };
+
+  // המרת קובץ ל-Base64 (fallback)
   const convertToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -43,19 +70,28 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     });
   };
 
-  // בדיקת תקינות URL של תמונה
-  const isValidImageUrl = (url: string): boolean => {
-    if (!url) return false;
-    
-    // בדיקה אם זה Base64
-    if (url.startsWith('data:image/')) return true;
-    
-    // בדיקה אם זה URL תקין
+  // העלאת קובץ לשרת
+  const uploadToServer = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('image', file);
+
     try {
-      new URL(url);
-      return /\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(url);
-    } catch {
-      return false;
+      const response = await fetch('/api/upload/image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'שגיאה בהעלאה לשרת');
+      }
+
+      const data = await response.json();
+      return data.url;
+    } catch (error) {
+      console.error('Server upload failed, using base64:', error);
+      // אם השרת לא זמין, נשתמש ב-base64
+      return convertToBase64(file);
     }
   };
 
@@ -63,26 +99,33 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setError(null);
+    setSuccess(null);
+
     // בדיקת סוג הקובץ
-    if (!file.type.startsWith('image/')) {
-      alert('אנא בחר קובץ תמונה בלבד');
+    if (!allowedTypes.includes(file.type)) {
+      setError(`סוג קובץ לא נתמך. הסוגים המותרים: ${allowedTypes.map(type => type.split('/')[1]).join(', ')}`);
       return;
     }
 
-    // בדיקת גודל הקובץ (מקסימום 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('גודל הקובץ חייב להיות קטן מ-5MB');
+    // בדיקת גודל הקובץ
+    if (file.size > maxSize) {
+      setError(`הקובץ גדול מדי. גודל מקסימלי: ${(maxSize / (1024 * 1024)).toFixed(1)}MB`);
       return;
     }
 
     setIsUploading(true);
     try {
-      const base64 = await convertToBase64(file);
-      onChange(base64);
-      setUrlInput(base64);
-    } catch (error) {
+      const imageUrl = await uploadToServer(file);
+      onChange(imageUrl);
+      setUrlInput(imageUrl);
+      setSuccess('התמונה הועלתה בהצלחה!');
+      
+      // הסתר הודעת הצלחה אחרי 3 שניות
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (error: any) {
       console.error('שגיאה בהעלאת הקובץ:', error);
-      alert('שגיאה בהעלאת הקובץ');
+      setError('שגיאה בהעלאת הקובץ: ' + error.message);
     } finally {
       setIsUploading(false);
     }
@@ -90,13 +133,13 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 
   const handleUrlChange = (url: string) => {
     setUrlInput(url);
-  };
-
-  const handleUrlSubmit = () => {
-    if (isValidImageUrl(urlInput)) {
-      onChange(urlInput);
-    } else if (urlInput.trim()) {
-      alert('אנא הכנס URL תקין של תמונה');
+    setError(null);
+    setSuccess(null);
+    
+    if (url && isValidImageUrl(url)) {
+      onChange(url);
+    } else if (url && !isValidImageUrl(url)) {
+      setError('כתובת URL לא תקינה לתמונה');
     } else {
       onChange('');
     }
@@ -105,6 +148,8 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
   const clearImage = () => {
     onChange('');
     setUrlInput('');
+    setError(null);
+    setSuccess(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -114,130 +159,144 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     fileInputRef.current?.click();
   };
 
+  // בדיקת תקינות התמונה לתצוגה
+  const getImageSrc = () => {
+    if (!value) return null;
+    
+    if (value.startsWith('data:image/') || isValidImageUrl(value)) {
+      return value;
+    }
+    
+    return null;
+  };
+
+  const imageSrc = getImageSrc();
+
   return (
     <div className={`space-y-3 ${className}`}>
-      <label className={`block text-sm font-medium ${themeClasses.text}`}>
-        {label}
-      </label>
+      {label && (
+        <label className={`block text-sm font-medium ${themeClasses.text}`}>
+          {label}
+        </label>
+      )}
 
       {/* כפתורי בחירת שיטה */}
-      <div className="flex space-x-2 mb-3">
+      <div className="flex gap-2 mb-3">
         <button
           type="button"
           onClick={() => setUploadMethod('url')}
-          className={`flex items-center space-x-2 px-3 py-2 rounded-md transition-colors text-sm ${
+          className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors text-sm ${
             uploadMethod === 'url'
-              ? `${themeClasses.bg} text-white`
-              : `${themeClasses.cardBg} ${themeClasses.text} ${themeClasses.border} border hover:${themeClasses.hover}`
+              ? 'bg-blue-500 text-white'
+              : `${themeClasses.cardBg} ${themeClasses.text} border ${themeClasses.border} hover:${themeClasses.hover}`
           }`}
         >
-          <Link size={16} />
-          <span>קישור</span>
+          <Link className="w-4 h-4" />
+          קישור
         </button>
-        
         <button
           type="button"
           onClick={() => setUploadMethod('file')}
-          className={`flex items-center space-x-2 px-3 py-2 rounded-md transition-colors text-sm ${
+          className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors text-sm ${
             uploadMethod === 'file'
-              ? `${themeClasses.bg} text-white`
-              : `${themeClasses.cardBg} ${themeClasses.text} ${themeClasses.border} border hover:${themeClasses.hover}`
+              ? 'bg-blue-500 text-white'
+              : `${themeClasses.cardBg} ${themeClasses.text} border ${themeClasses.border} hover:${themeClasses.hover}`
           }`}
         >
-          <Upload size={16} />
-          <span>העלאה</span>
+          <Upload className="w-4 h-4" />
+          העלאה
         </button>
       </div>
 
-      {/* שדה קישור */}
+      {/* תצוגת התמונה הנוכחית */}
+      {showPreview && imageSrc && (
+        <div className="relative inline-block">
+          <img
+            src={imageSrc}
+            alt="תצוגה מקדימה"
+            className={`${previewClassName} object-cover border rounded-md ${themeClasses.border}`}
+            onError={(e) => {
+              console.error('Image failed to load:', imageSrc);
+              setError('שגיאה בטעינת התמונה');
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <button
+            type="button"
+            onClick={clearImage}
+            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors shadow-lg"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+
+      {/* הודעות */}
+      {error && (
+        <div className="flex items-center gap-2 text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded-md">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {success && (
+        <div className="flex items-center gap-2 text-green-500 text-sm bg-green-50 dark:bg-green-900/20 p-2 rounded-md">
+          <Check className="w-4 h-4 flex-shrink-0" />
+          <span>{success}</span>
+        </div>
+      )}
+
+      {/* שדה URL */}
       {uploadMethod === 'url' && (
-        <div className="flex space-x-2">
+        <div className="space-y-2">
           <input
             type="url"
             value={urlInput}
             onChange={(e) => handleUrlChange(e.target.value)}
-            onBlur={handleUrlSubmit}
-            onKeyPress={(e) => e.key === 'Enter' && handleUrlSubmit()}
             placeholder={placeholder}
-            className={`flex-1 px-3 py-2 rounded-md border ${themeClasses.border} ${themeClasses.cardBg} ${themeClasses.text} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+            className={`w-full px-3 py-2 border rounded-md ${themeClasses.border} ${themeClasses.cardBg} ${themeClasses.text} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors`}
           />
-          {urlInput && (
-            <button
-              type="button"
-              onClick={handleUrlSubmit}
-              className={`px-3 py-2 ${themeClasses.bg} text-white rounded-md hover:opacity-80 transition-opacity`}
-            >
-              אישור
-            </button>
-          )}
+          <p className={`text-xs ${themeClasses.textSecondary}`}>
+            תומך ב: JPG, PNG, GIF, WebP, SVG
+          </p>
         </div>
       )}
 
-      {/* אזור העלאת קובץ */}
+      {/* העלאת קובץ */}
       {uploadMethod === 'file' && (
-        <div 
-          onClick={openFileDialog}
-          className={`border-2 border-dashed ${themeClasses.border} rounded-lg p-6 cursor-pointer transition-colors hover:${themeClasses.hover} ${themeClasses.cardBg}`}
-        >
-          <div className="text-center">
+        <div className="space-y-2">
+          <div
+            onClick={openFileDialog}
+            className={`border-2 border-dashed ${themeClasses.border} rounded-md p-6 text-center cursor-pointer transition-colors ${
+              isUploading 
+                ? 'opacity-50 cursor-not-allowed' 
+                : `hover:${themeClasses.hover} hover:border-blue-400`
+            }`}
+          >
             {isUploading ? (
-              <div className="animate-spin mx-auto w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+              <div className="flex items-center justify-center gap-2">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                <span className={themeClasses.text}>מעלה...</span>
+              </div>
             ) : (
-              <>
-                <Camera className={`mx-auto w-12 h-12 ${themeClasses.textSecondary} mb-2`} />
-                <p className={`${themeClasses.text} mb-1`}>לחץ להעלאת תמונה</p>
+              <div className="flex flex-col items-center gap-2">
+                <Camera className={`w-8 h-8 ${themeClasses.textSecondary}`} />
+                <p className={`${themeClasses.text} font-medium`}>לחץ כדי לבחור תמונה</p>
                 <p className={`text-xs ${themeClasses.textSecondary}`}>
-                  JPG, PNG, GIF עד 5MB
+                  מקסימום {(maxSize / (1024 * 1024)).toFixed(1)}MB • {allowedTypes.map(type => type.split('/')[1].toUpperCase()).join(', ')}
                 </p>
-              </>
+              </div>
             )}
           </div>
-        </div>
-      )}
 
-      {/* קובץ הקלט הנסתר */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleFileSelect}
-        className="hidden"
-      />
-
-      {/* תצוגה מקדימה */}
-      {value && isValidImageUrl(value) && (
-        <div className="mt-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className={`text-sm ${themeClasses.text}`}>תצוגה מקדימה:</span>
-            <button
-              type="button"
-              onClick={clearImage}
-              className={`p-1 rounded-full hover:bg-red-100 text-red-500 transition-colors`}
-              title="הסר תמונה"
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <div className={`relative ${previewClassName} rounded-lg overflow-hidden ${themeClasses.border} border`}>
-            <img
-              src={value}
-              alt="תצוגה מקדימה"
-              className="w-full h-full object-cover"
-              onError={() => {
-                console.error('שגיאה בטעינת התמונה');
-                clearImage();
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* הודעת שגיאה אם URL לא תקין */}
-      {value && !isValidImageUrl(value) && (
-        <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-sm text-red-600">
-            URL התמונה לא תקין או לא נטען כראוי
-          </p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={allowedTypes.join(',')}
+            onChange={handleFileSelect}
+            className="hidden"
+            disabled={isUploading}
+          />
         </div>
       )}
     </div>

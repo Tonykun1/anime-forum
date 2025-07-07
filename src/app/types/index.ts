@@ -19,7 +19,7 @@ export interface UserProfile {
   username: string;
   email: string;
   avatar?: string;
-  coverImage?: string;
+  cover_image?: string;
   bio?: string;
   joinDate: string;
   postsCount: number;

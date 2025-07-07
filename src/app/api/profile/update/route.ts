@@ -20,38 +20,42 @@ export async function PUT(request: NextRequest) {
 
     console.log('Updating profile for user:', user.id);
 
-    // קבל FormData
-    const formData = await request.formData();
-    console.log('FormData received');
-
-    // חלץ נתונים מהטופס
-    const username = formData.get('username') as string;
-    const bio = formData.get('bio') as string;
-    const avatarUrl = formData.get('avatar_url') as string;
-    const coverUrl = formData.get('cover_url') as string;
-
-    console.log('Form data:', { username, bio, avatarUrl, coverUrl });
-
-    // הכן נתוני עדכון
-    const updateData: any = {};
-    
-    if (username && username.trim()) {
-      updateData.username = username.trim();
+    // קבל FormData או JSON
+    let updateData: any = {};
+    let isFormData = false;
+    let body: any = null;
+    try {
+      // Try to parse as FormData
+      const contentType = request.headers.get('content-type') || '';
+      if (contentType.includes('multipart/form-data')) {
+        isFormData = true;
+        const formData = await request.formData();
+        const username = formData.get('username') as string;
+        const bio = formData.get('bio') as string;
+        const avatarUrl = formData.get('avatar_url') as string;
+        const coverUrl = formData.get('cover_url') as string;
+        if (username && username.trim()) updateData.username = username.trim();
+        if (bio !== null && bio !== undefined) updateData.bio = bio.trim();
+        if (avatarUrl && avatarUrl.trim()) updateData.avatar = avatarUrl.trim();
+        if (coverUrl && coverUrl.trim()) updateData.cover_image = coverUrl.trim();
+      } else {
+        // Try to parse as JSON
+        body = await request.json();
+        if (body.username && body.username.trim()) updateData.username = body.username.trim();
+        if (body.bio !== null && body.bio !== undefined) updateData.bio = body.bio.trim();
+        if (body.avatar && body.avatar.trim()) updateData.avatar = body.avatar.trim();
+        // Accept both camelCase and snake_case for cover image
+        if (body.coverImage && body.coverImage.trim()) updateData.cover_image = body.coverImage.trim();
+        if (body.cover_image && body.cover_image.trim()) updateData.cover_image = body.cover_image.trim();
+      }
+    } catch (e) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid request body' },
+        { status: 400 }
+      );
     }
     
-    if (bio !== null && bio !== undefined) {
-      updateData.bio = bio.trim();
-    }
-    
-    if (avatarUrl && avatarUrl.trim()) {
-      updateData.avatar = avatarUrl.trim();
-    }
-    
-    if (coverUrl && coverUrl.trim()) {
-      updateData.cover_image = coverUrl.trim();
-    }
-    
-    console.log('Update data prepared:', updateData);
+    console.log('Form data:', { username: updateData.username, bio: updateData.bio, avatarUrl: updateData.avatar, coverUrl: updateData.cover_image });
     
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(

@@ -22,7 +22,7 @@ export interface DBUser {
   avatar?: string;
   role: string;
   bio?: string;
-  cover_image?: string;
+  coverImage?: string;
   posts_count: number;
   likes_count: number;
   created_at: Date;

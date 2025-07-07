@@ -5,8 +5,11 @@ export interface User {
   username: string;
   email: string;
   avatar: string;
+  role: string;
   coverImage?: string;
+  cover_image?: string;
   bio?: string;
+  created_at: string;
   joinDate: string;
   postsCount: number;
   likesCount: number;

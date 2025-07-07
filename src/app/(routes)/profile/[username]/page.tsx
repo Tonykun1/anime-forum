@@ -1,10 +1,9 @@
-// app/profile/[username]/page.tsx - מעודכן עם קומפוננט PostsList
+// app/profile/[username]/page.tsx - חזרה לקוד עובד עם תמונת רקע
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/Context/AuthContext';
-import PostsList from '@/app/Components/PostsList';
 import { 
   Calendar, 
   MessageCircle, 
@@ -52,6 +51,33 @@ export default function UserProfilePage() {
       setLoading(true);
       console.log('🔄 Fetching profile for:', username);
       
+      // אם זה המשתמש המחובר, נסה גם מהקונטקסט
+      if (currentUser && currentUser.username === username) {
+        console.log('📋 This is current user, checking context data');
+        console.log('Context cover_image:', currentUser.cover_image);
+        console.log('Context coverImage:', currentUser.coverImage);
+        
+        // תחילה הראה נתוני קונטקסט
+        const isOwnProfile = true;
+        setProfile({
+          id: currentUser.id,
+          username: currentUser.username,
+          email: currentUser.email,
+          bio: currentUser.bio,
+          avatar: currentUser.avatar,
+          cover_image: currentUser.cover_image || currentUser.coverImage,
+          role: currentUser.role || 'user',
+          postsCount: currentUser.postsCount || 0,
+          likesCount: currentUser.likesCount || 0,
+          joinDate: currentUser.joinDate || new Date().toISOString(),
+          created_at: currentUser.created_at || new Date().toISOString(),
+          isOwnProfile
+        });
+        setLoading(false);
+        return;
+      }
+      
+      // אם זה לא המשתמש המחובר, קרא מהAPI
       const response = await fetch(`/api/users/${username}`);
       
       if (!response.ok) {
@@ -86,20 +112,6 @@ export default function UserProfilePage() {
     } catch {
       return dateString;
     }
-  };
-
-  // קומפוננט PostsList מותאם אישית לפרופיל
-  const UserPostsList = () => {
-    return (
-      <PostsList
-        className="mt-6"
-        themeClasses={themeClasses}
-        layout="list"
-        limit={10}
-        // נעביר את שם המשתמש כפרמטר להגבלת הפוסטים
-        // אבל קודם צריך להוסיף תמיכה בזה ב-API
-      />
-    );
   };
 
   if (loading) {
@@ -138,14 +150,24 @@ export default function UserProfilePage() {
     <div className="min-h-screen bg-gray-900">
       {/* Cover Image */}
       <div className="h-64 bg-gradient-to-r from-blue-600 to-purple-600 relative">
-        {profile.coverImage && (
+
+        <div className="absolute inset-0  bg-opacity-30"></div>
+        
+        {/* הודעת debug אם יש תמונת רקע */}
+        {profile.cover_image && (
+          <div className="">
           <img
-            src={profile.coverImage}
+            src={profile.cover_image}
             alt="Cover"
-            className="w-full h-full object-cover"
+            className="w-full h-[16rem] object-cover"
+            onLoad={() => console.log('✅ Cover loaded:', profile.cover_image)}
+            onError={(e) => {
+              console.log('❌ Cover failed:', profile.cover_image);
+              e.currentTarget.style.display = 'none';
+            }}
           />
+          </div>
         )}
-        <div className="absolute inset-0 bg-black bg-opacity-30"></div>
       </div>
 
       {/* Profile Content */}
@@ -194,7 +216,7 @@ export default function UserProfilePage() {
                   <div className="flex flex-wrap items-center justify-center sm:justify-start space-x-4 text-sm text-gray-400 mb-4">
                     <div className="flex items-center space-x-1">
                       <Calendar className="w-4 h-4" />
-                      <span>הצטרף ב-{formatDate(profile.joinDate)}</span>
+                      <span>הצטרף ב-{formatDate(profile.joinDate || profile.created_at)}</span>
                     </div>
                     {profile.location && (
                       <div className="flex items-center space-x-1">
@@ -207,11 +229,11 @@ export default function UserProfilePage() {
                   {/* Stats */}
                   <div className="flex items-center justify-center sm:justify-start space-x-6 mb-4">
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-white">{profile.postsCount}</div>
+                      <div className="text-2xl font-bold text-white">{profile.postsCount || profile.posts_count || 0}</div>
                       <div className="text-sm text-gray-400">פוסטים</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-white">{profile.likesCount}</div>
+                      <div className="text-2xl font-bold text-white">{profile.likesCount || profile.likes_count || 0}</div>
                       <div className="text-sm text-gray-400">לייקים</div>
                     </div>
                   </div>
@@ -267,6 +289,17 @@ export default function UserProfilePage() {
                       {profile.role === 'admin' ? 'מנהל' : 
                        profile.role === 'editor' ? 'עורך' : 'משתמש'}
                     </span>
+                  </div>
+                  
+                  {/* מידע על תמונת רקע */}
+                  <div className="mt-4 p-2 bg-gray-700 rounded text-xs">
+                    <p className="text-gray-400">תמונת רקע:</p>
+                    <p className={profile.cover_image ? "text-green-400" : "text-red-400"}>
+                      {profile.cover_image ? "יש תמונה ✓" : "אין תמונה ✗"}
+                    </p>
+                    {profile.cover_image && (
+                      <p className="text-white break-all mt-1">{profile.cover_image.split('/').pop()}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -332,7 +365,7 @@ export default function UserProfilePage() {
   );
 }
 
-// קומפוננט נפרד לפוסטים של המשתמש
+// קומפוננט נפרד לפוסטים של המשתמש - עובד בדיוק כמו קודם
 interface UserPostsListComponentProps {
   username: string;
   themeClasses: any;

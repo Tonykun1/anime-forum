@@ -1,144 +1,195 @@
-// src/app/Context/AuthContext.tsx - מתוקן לעבוד עם API
+// app/Context/AuthContext.tsx - תיקון הקונטקסט
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, LoginFormData, RegisterFormData, AuthContextType } from '../types/auth';
+
+// Types
+export interface User {
+  id: number;
+  username: string;
+  email: string;
+  avatar?: string;
+  coverImage?: string;
+  cover_image?: string;
+  bio?: string;
+  joinDate?: string;
+  postsCount?: number;
+  likesCount?: number;
+  role?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AuthContextType {
+  user: User | null;
+  isAuthenticated: boolean;
+  login: (email: string, password: string) => Promise<boolean>;
+  register: (userData: any) => Promise<boolean>;
+  logout: () => void;
+  updateUserProfile: (updates: Partial<User>) => void;
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Mock users for development
+const mockUsers: (User & { password: string })[] = [
+  {
+    id: 1,
+    username: "talgerbi",
+    email: "talgerbi@gmail.com",
+    password: "123456",
+    avatar: "https://via.placeholder.com/100x100/3B82F6/FFFFFF?text=TG",
+    coverImage: "",
+    cover_image: "",
+    bio: "משתמש ראשי",
+    joinDate: "2023-01-15",
+    postsCount: 0,
+    likesCount: 0,
+    role: "user"
+  }
+];
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // בדיקה אם המשתמש מחובר כשהעמוד נטען
+  // Load user from localStorage on mount
   useEffect(() => {
-    checkAuthStatus();
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      try {
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+        setIsAuthenticated(true);
+        console.log('📋 User loaded from localStorage:', parsedUser.username);
+      } catch (error) {
+        console.error('Error parsing saved user:', error);
+        localStorage.removeItem('currentUser');
+      }
+    }
   }, []);
 
-  const checkAuthStatus = async (): Promise<void> => {
+  const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const response = await fetch('/api/auth/me', {
-        credentials: 'include'
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data.user);
-        setIsAuthenticated(true);
-        console.log('✅ User authenticated:', data.user);
-      } else {
-        setUser(null);
-        setIsAuthenticated(false);
-        console.log('❌ User not authenticated');
-      }
-    } catch (error) {
-      console.error('Auth check error:', error);
-      setUser(null);
-      setIsAuthenticated(false);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const login = async (formData: LoginFormData): Promise<boolean> => {
-    try {
-      console.log('🔑 Attempting login for:', formData.email);
+      const foundUser = mockUsers.find(u => u.email === email && u.password === password);
       
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(formData),
-      });
+      if (foundUser) {
+        const userWithoutPassword = {
+          id: foundUser.id,
+          username: foundUser.username,
+          email: foundUser.email,
+          avatar: foundUser.avatar,
+          coverImage: foundUser.coverImage,
+          cover_image: foundUser.cover_image,
+          bio: foundUser.bio,
+          joinDate: foundUser.joinDate,
+          postsCount: foundUser.postsCount,
+          likesCount: foundUser.likesCount,
+          role: foundUser.role
+        };
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setUser(data.user);
+        setUser(userWithoutPassword);
         setIsAuthenticated(true);
-        console.log('✅ Login successful:', data.user);
+        localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
+        
+        console.log('✅ User logged in:', userWithoutPassword.username);
         return true;
-      } else {
-        console.error('❌ Login failed:', data.error);
-        return false;
       }
+      
+      return false;
     } catch (error) {
       console.error('Login error:', error);
       return false;
     }
   };
 
-  const register = async (formData: RegisterFormData): Promise<boolean> => {
+  const register = async (userData: any): Promise<boolean> => {
     try {
-      console.log('📝 Attempting registration for:', formData.username, formData.email);
-      
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setUser(data.user);
-        setIsAuthenticated(true);
-        console.log('✅ Registration successful:', data.user);
-        return true;
-      } else {
-        console.error('❌ Registration failed:', data.error);
-        throw new Error(data.error || 'רישום נכשל');
+      // Check if user already exists
+      if (mockUsers.some(u => u.email === userData.email || u.username === userData.username)) {
+        return false;
       }
+
+      const newUser = {
+        id: Date.now(),
+        username: userData.username,
+        email: userData.email,
+        password: userData.password,
+        avatar: userData.avatar || `https://via.placeholder.com/100x100/6366F1/FFFFFF?text=${userData.username.charAt(0).toUpperCase()}`,
+        coverImage: "",
+        cover_image: "",
+        bio: "",
+        joinDate: new Date().toISOString().split('T')[0],
+        postsCount: 0,
+        likesCount: 0,
+        role: "user"
+      };
+
+      mockUsers.push(newUser);
+
+      const userWithoutPassword = {
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email,
+        avatar: newUser.avatar,
+        coverImage: newUser.coverImage,
+        cover_image: newUser.cover_image,
+        bio: newUser.bio,
+        joinDate: newUser.joinDate,
+        postsCount: newUser.postsCount,
+        likesCount: newUser.likesCount,
+        role: newUser.role
+      };
+
+      setUser(userWithoutPassword);
+      setIsAuthenticated(true);
+      localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
+      
+      console.log('✅ User registered:', userWithoutPassword.username);
+      return true;
     } catch (error) {
-      console.error('Registration error:', error);
-      throw error;
+      console.error('Register error:', error);
+      return false;
     }
   };
 
-  const logout = async (): Promise<void> => {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include'
-      });
-      
-      setUser(null);
-      setIsAuthenticated(false);
-      console.log('✅ Logout successful');
-    } catch (error) {
-      console.error('Logout error:', error);
-      // גם אם יש שגיאה, עדיין נתנתק מהצד של הקליינט
-      setUser(null);
-      setIsAuthenticated(false);
-    }
+  const logout = (): void => {
+    setUser(null);
+    setIsAuthenticated(false);
+    localStorage.removeItem('currentUser');
+    console.log('👋 User logged out');
   };
 
-  const updateUserProfile = async (updates: Partial<User>): Promise<void> => {
+  const updateUserProfile = (updates: Partial<User>): void => {
     try {
-      const response = await fetch('/api/auth/profile', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(updates),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data.user);
-        console.log('✅ Profile updated:', data.user);
-      } else {
-        console.error('❌ Profile update failed');
+      if (user) {
+        console.log('🔄 Updating user profile:', updates);
+        
+        const updatedUser = { ...user, ...updates };
+        
+        // ודא שגם coverImage וגם cover_image מעודכנים
+        if (updates.cover_image) {
+          updatedUser.coverImage = updates.cover_image;
+        }
+        if (updates.coverImage) {
+          updatedUser.cover_image = updates.coverImage;
+        }
+        
+        setUser(updatedUser);
+        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        
+        // עדכון במאגר המדומה
+        const userIndex = mockUsers.findIndex(u => u.id === user.id);
+        if (userIndex !== -1) {
+          mockUsers[userIndex] = { ...mockUsers[userIndex], ...updates };
+        }
+        
+        console.log('✅ Profile updated successfully:', updatedUser.username);
+        console.log('🖼️ Cover image updated to:', updatedUser.cover_image);
       }
     } catch (error) {
-      console.error('Profile update error:', error);
+      console.error('❌ Error updating profile:', error);
+      throw error; // זה יגרום לשגיאה להופיע בקונסול
     }
   };
 
@@ -150,17 +201,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logout,
     updateUserProfile
   };
-
-  // הצגת לודינג בזמן בדיקת האימות
-  if (isLoading) {
-    return (
-      <AuthContext.Provider value={value}>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-        </div>
-      </AuthContext.Provider>
-    );
-  }
 
   return (
     <AuthContext.Provider value={value}>

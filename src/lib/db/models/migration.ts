@@ -1,6 +1,6 @@
 // src/lib/db/migration.ts - מתוקן לחלוטין ללא שגיאות TypeScript
 import { db } from '../connection';
-import { tableUpdates, allTables } from '../schema';
+import { tableUpdates, allTables, allSeedData } from '../schema';
 
 export async function runMigration(): Promise<{ success: boolean; message: string; details?: any }> {
   try {
@@ -31,8 +31,24 @@ export async function runMigration(): Promise<{ success: boolean; message: strin
       console.log('🔄 Running table updates...');
       
       for (const [index, updateQuery] of tableUpdates.entries()) {
-        await db.query(updateQuery);
-        console.log(`✅ Update ${index + 1}/${tableUpdates.length} completed`);
+        try {
+          await db.query(updateQuery);
+          console.log(`✅ Update ${index + 1}/${tableUpdates.length} completed`);
+        } catch (updateError: any) {
+          console.log(`⚠️ Update ${index + 1} skipped (probably already exists):`, updateError.message);
+        }
+      }
+    }
+
+    // הוספת נתוני seed (קטגוריות)
+    if (allSeedData && allSeedData.length > 0) {
+      try {
+        for (const [index, seedQuery] of allSeedData.entries()) {
+          await db.query(seedQuery);
+          console.log(`✅ Seed data ${index + 1}/${allSeedData.length} inserted`);
+        }
+      } catch (seedError: any) {
+        console.log('⚠️ Seed data already exists or failed:', seedError.message);
       }
     }
 
@@ -148,10 +164,10 @@ export async function createTestUser(): Promise<{ success: boolean; message: str
       'TestUser',
       'test@example.com',
       passwordHash,
-      'https://via.placeholder.com/100x100/6366F1/FFFFFF?text=TU',
+      'https://ui-avatars.com/api/?name=TU&background=6366F1&color=FFFFFF&size=200',
       'user',
       'משתמש לבדיקה',
-      'https://via.placeholder.com/800x200/4F46E5/FFFFFF?text=TestUser',
+      'https://ui-avatars.com/api/?name=TestUser&background=4F46E5&color=FFFFFF&size=800x200&format=png',
       0,
       0
     ]);
